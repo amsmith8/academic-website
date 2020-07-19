@@ -18,10 +18,9 @@ education:
 email: "amsmith11@usf.edu"
 
 interests:
-- Disease Ecology
-- Invasive Species
+- Avian Ecology
+- Epidemiology
 - Machine Learning
-- Mathematical Modeling  
 - Species Distribution Modeling
 
 organizations:
@@ -34,12 +33,9 @@ social:
 - icon: envelope
   icon_pack: fas
   link: '#contact'
-- icon: google-scholar
-  icon_pack: ai
-  link: https://scholar.google.co.uk/citations?user=sIwtMXoAAAAJ
 - icon: github
   icon_pack: fab
-  link: https://github.com/gcushen
+  link: https://github.com/amsmith8
 superuser: true
 title: Austin M. Smith, MS
 user_groups:
