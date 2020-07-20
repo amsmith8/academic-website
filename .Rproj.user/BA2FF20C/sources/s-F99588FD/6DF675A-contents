@@ -2,6 +2,6 @@
 header:
   caption: ""
   image: ""
-layout: docs
 title: Publications
+view: 4
 ---
