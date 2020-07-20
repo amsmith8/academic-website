@@ -1,0 +1,7 @@
+
+
+
+blogdown::hugo_version()
+
+file.create("netlify.toml")
+file.create(".gitignore")

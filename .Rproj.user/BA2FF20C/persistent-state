@@ -1,0 +1,8 @@
+build-last-errors="[]"
+build-last-errors-base-dir=""
+build-last-outputs="[{\"output\":\"==> rmarkdown::render_site(encoding = 'UTF-8')\\n\\n\",\"type\":0},{\"output\":\"Rendering content/post/2015-07-23-r-rmarkdown.Rmd\\n\",\"type\":2},{\"output\":\"Building sites … \",\"type\":1},{\"output\":\"ERROR 2020/07/20 11:57:59 Unable to load gallery in /Users/austinsmith/Documents/GitHub/academic-website/content/home/gallery/index.md.\\n\",\"type\":1},{\"output\":\"Total in 535 ms\\n\",\"type\":1},{\"output\":\"Error: Error building site: logged 1 error(s)\\n\\nOutput created: public/index.html\\n\",\"type\":2}]"
+compile_pdf_state="{\"errors\":[],\"output\":\"\",\"running\":false,\"tab_visible\":false,\"target_file\":\"\"}"
+files.monitored-path=""
+find-in-files-state="{\"handle\":\"\",\"input\":\"\",\"path\":\"\",\"regex\":true,\"results\":{\"file\":[],\"line\":[],\"lineValue\":[],\"matchOff\":[],\"matchOn\":[]},\"running\":false}"
+imageDirtyState="1"
+saveActionState="-1"
