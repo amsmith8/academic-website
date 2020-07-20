@@ -23,7 +23,7 @@ date_format = "Jan 2006"
   company = "Dept. of Integrative Biology, Univ. of South Florida"
   company_url = "https://www.usf.edu/arts-sciences/departments/ib/"
   location = "Tampa, Fl"
-  date_start = 2018-11-01"
+  date_start = "2018-11-01"
   date_end = ""
   description = """
 
