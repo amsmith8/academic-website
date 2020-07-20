@@ -5,13 +5,15 @@
     "dirty" : false,
     "encoding" : "UTF-8",
     "folds" : "",
-    "hash" : "2033493619",
+    "hash" : "1071041682",
     "id" : "8A229BDB",
-    "lastKnownWriteTime" : 1595097999,
-    "last_content_update" : 1595097999,
+    "lastKnownWriteTime" : 1595268419,
+    "last_content_update" : 1595268419657,
     "path" : "~/Documents/GitHub/academic-website/content/home/accomplishments.md",
     "project_path" : "content/home/accomplishments.md",
     "properties" : {
+        "cursorPosition" : "4,13",
+        "scrollLine" : "0"
     },
     "read_only" : false,
     "read_only_alternatives" : [
