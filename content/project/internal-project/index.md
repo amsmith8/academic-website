@@ -6,7 +6,7 @@ image:
   focal_point: Smart
 links:
 #- icon: twitter
-  icon_pack: fab
+#  icon_pack: fab
   name: Fullproject 
   url: files/project-htmls/CA_Chukar.html
 #slides: example
