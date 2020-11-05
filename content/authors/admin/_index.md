@@ -21,10 +21,11 @@ education:
 email: "amsmith11@usf.edu"
 
 interests:
-- Avian Ecology
+- Avian biology
 - Epidemiology
 - Machine Learning
 - Species Distribution Modeling
+- Theoretical Ecology
 
 organizations:
 - name: Department of Integrative Biology, University of South Florida
@@ -50,7 +51,7 @@ social:
   link: https://www.researchgate.net/profile/Austin_Smith33
   
 superuser: true
-title: Austin M. Smith, MS
+title: Austin M. Smith
 user_groups:
 - Researchers
 - Visitors
