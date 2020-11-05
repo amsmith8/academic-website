@@ -5,12 +5,11 @@ image:
   caption: Photo by rawpixel on Unsplash
   focal_point: Smart
 links:
-- icon: twitter
+- icon: graph
   icon_pack: fab
   name: Follow
-  url: https://twitter.com/georgecushen
+  url: files/project-htmls/CA_Chukar.html
 slides: example
-project: example
 summary: An example of using the in-built project page.
 tags:
 - Deep Learning
