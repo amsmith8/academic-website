@@ -10,6 +10,7 @@ links:
   name: Follow
   url: https://twitter.com/georgecushen
 slides: example
+project: example
 summary: An example of using the in-built project page.
 tags:
 - Deep Learning
