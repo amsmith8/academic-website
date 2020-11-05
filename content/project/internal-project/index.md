@@ -8,7 +8,7 @@ links:
 #- icon: twitter
 #  icon_pack: fab
   name: Fullproject 
-  url: files/project-htmls/CA_Chukar.html
+  url: "files/project-htmls/CA_Chukar.html"
 #slides: example
 summary: An example of using the in-built project page.
 tags:
