@@ -10,10 +10,13 @@ education:
     year: 2019 - Present
   - course: M.S. in Interdisciplinary Ecology -- Wildlife Ecology & Conservation
     institution: University of Florida
-    year: 2018
+    year: 2015-18
   - course: B.A. in Mathematics
     institution: University of Florida
-    year: 2013
+    year: 2010-13
+  - course: A.A. in Mathematics
+    institution: Santa Fe College
+    year: 2007-2010  
     
 email: "amsmith11@usf.edu"
 
@@ -36,6 +39,16 @@ social:
 - icon: github
   icon_pack: fab
   link: https://github.com/amsmith8
+- icon: google-scholar
+  icon_pack: ai
+  link: https://scholar.google.com/citations?hl=en&user=NSGUwR8AAAAJ
+- icon: orcid
+  icon_pack: ai
+  link: https://orcid.org/0000-0003-2302-6417
+- icon: researchgate
+  icon_pack: ai
+  link: https://www.researchgate.net/profile/Austin_Smith33
+  
 superuser: true
 title: Austin M. Smith, MS
 user_groups:
