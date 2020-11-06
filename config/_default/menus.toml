@@ -6,22 +6,22 @@
 [[main]]
   name = "About"
   url = "hero"
-  weight = 10
+  weight = 1
 
 [[main]]
   name = "Posts"
   url = "posts"
-  weight = 20
+  weight = 2
 
 [[main]]
   name = "Projects"
   url = "projects"
-  weight = 30
+  weight = 3
 
 [[main]]
   name = "Publications"
   url = "publications"
-  weight = 40
+  weight = 4
 
 #[[main]]
 #  name = "Courses"
@@ -38,4 +38,4 @@
 [[main]]
   name = "CV"
   url = "files/cv.pdf"
-  weight = 50
+  weight = 5
