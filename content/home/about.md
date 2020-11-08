@@ -12,3 +12,11 @@ title = "Biography"
 # See https://sourcethemes.com/academic/docs/get-started/#introduce-yourself
 author = "admin"
 +++
+
+[advanced]
+ # Custom CSS. 
+ css_style = "background-image:linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)),  url('/static/img/heron.jpeg');"
+ 
+ # CSS class.
+ css_class = "aboutme-header"
++++
