@@ -17,28 +17,47 @@ date_format = "Jan 2006"
 #   Required fields are `title`, `company`, and `date_start`.
 #   Leave `date_end` empty if it's your current employer.
 #   Begin/end multi-line descriptions with 3 quotes `"""`.
+
 [[experience]]
-  title = "CEO"
-  company = "GenCoin"
-  company_url = ""
-  location = "California"
-  date_start = "2017-01-01"
+  title = "Research Assistant"
+  company = "Dept. of Integrative Biology, Univ. of South Florida"
+  company_url = "https://www.usf.edu/arts-sciences/departments/ib/"
+  location = "Tampa, Fl"
+  date_start = "2018-11-01"
   date_end = ""
   description = """
-  Responsibilities include:
-  
-  * Analysing
-  * Modelling
-  * Deploying
+
   """
 
 [[experience]]
-  title = "Professor"
-  company = "University X"
-  company_url = ""
-  location = "California"
-  date_start = "2016-01-01"
-  date_end = "2016-12-31"
-  description = """Taught electronic engineering and researched semiconductor physics."""
+  title = "Graduate Teaching Assistant"
+  company = "Dept. of Integrative Biology, Univ. of South Florida"
+  company_url = "https://www.usf.edu/arts-sciences/departments/ib/"
+  location = "Tampa, Fl"
+  date_start = "2019-08-01"
+  date_end = ""
+  description = """
 
+  """
+
+[[experience]]
+  title = "Graduate Teaching Assistant"
+  company = "Dept. of Wildlife Ecology & Conservation, Univ. of Florida"
+  company_url = "https://wec.ifas.ufl.edu"
+  location = "Gainesville, Fl"
+  date_start = "2016-01-01"
+  date_end = "2018-06-01"
+  description = """ 
+  
+  """
+[[experience]]
+  title = "Graduate Research Assistant"
+  company = "School of Forest Resources & Conservation, Univ. of Florida"
+  company_url = "http://sfrc.ufl.edu"
+  location = "Gainesville, Fl"
+  date_start = "2015-08-01"
+  date_end = "2016-01-01"
+  description = """
+
+  """
 +++
