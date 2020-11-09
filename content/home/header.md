@@ -25,16 +25,16 @@ title = ""
   # gradient_end = "SkyBlue"
   
   # Background image.
-  # image = "headers/heron.jpeg"  # Name of image in `static/img/`.
+  image = "headers/heron.jpeg"  # Name of image in `static/img/`.
   image_darken = 0  # Darken the image? Range 0-1 where 0 is transparent and 1 is opaque.
 
   # Text color (true=light or false=dark).
   text_color_light = false
 
-# [advanced]
-#  # Custom CSS. 
-#  css_style = "background-image:linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)),  url('/img/headers/heron.jpeg');"
-#  
-#  # CSS class.
-#  css_class = "aboutme-header"
+[advanced]
+ # Custom CSS.
+ css_style = "background-image:linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)),  url('/img/headers/heron.jpeg');"
+
+ # CSS class.
+ css_class = "aboutme-header"
 +++
