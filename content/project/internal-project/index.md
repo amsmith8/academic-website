@@ -9,11 +9,11 @@ links:
   icon_pack: fab
   name: Follow
   url: 
-slides: example
-summary: An example of using the in-built project page.
+slides: 
+summary: Add a better summary 
 tags:
 - Deep Learning
-title: Internal Project
+title: Understanding the ecological impact of the invasive Egyptian Goose 
 url_code: ""
 url_pdf: ""
 url_slides: ""
