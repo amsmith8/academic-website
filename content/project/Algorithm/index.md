@@ -10,10 +10,10 @@ links:
   name: Habitat Suitability 
   url: files/project-htmls/CA_Chukar.html
 slides: example
-summary: Analyzing species introduction data og gamebirds in the united states, focusing on the historical records related to the Chukar partridge.
+summary: yes
 tags:
 - Deep Learning
-title: Gamebird introductions: the story of Chukars in the US. 
+title: yes as well 
 url_code: "files/project-htmls/CA_Chukar.html"
 url_pdf: ""
 url_slides: ""
