@@ -14,14 +14,19 @@
   weight = 2
 
 [[main]]
-  name = "Projects"
+  name = "Research"
+  url = "post"
+  weight = 3  
+
+[[main]]
+  name = " more wordsProjects"
   url = "projects"
-  weight = 3
+  weight = 4
 
 [[main]]
   name = "Publications"
   url = "publication"
-  weight = 4
+  weight = 5
 
 #[[main]]
 #  name = "Courses"
@@ -38,4 +43,4 @@
 [[main]]
   name = "CV"
   url = "files/cv.pdf"
-  weight = 5
+  weight = 6
