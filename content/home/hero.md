@@ -51,6 +51,12 @@ height = "400px"
 
 #[cta_note]
 
+[advanced]
+ # Custom CSS.
+ css_style = "background-image:linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)),  url('/img/headers/spoonbill.JPG');"
+
+ # CSS class.
+ css_class = "aboutme-header"
 +++
 
 
