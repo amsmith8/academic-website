@@ -20,4 +20,4 @@ url_slides: ""
 url_video: ""
 ---
 
-For generations, species have been introduced around the world for a variety of reasons; nastalgia, 
+Dasuigi is tradtionally Japanese pruing technique...... 
