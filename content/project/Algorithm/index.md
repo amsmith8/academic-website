@@ -2,7 +2,7 @@
 date: "2016-04-27T00:00:00Z"
 external_link: ""
 image:
-  caption: Photo by CDC on CDC.gov
+  caption: Image by [Wrath of Gnon](https://twitter.com/wrathofgnon/status/1250287741247426565)
   focal_point: Smart
 links:
 - icon: graph
