@@ -21,7 +21,7 @@ url_video: ""
 ---
 
 Dasuigi is tradtionally Japanese pruing technique...... 
-``mermaid
+```mermaid
 graph TD
 A[Hard] -->|Text| B(Round)
 B --> C{Decision}
