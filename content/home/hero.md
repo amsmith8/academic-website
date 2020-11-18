@@ -29,7 +29,7 @@ hero_media = "heron.jpeg"
   image_size = "cover"  #  Options are `cover` (default), `contain`, or `actual` size.
   image_position = "center"  # Options include `left`, `center` (default), or `right`.
   image_parallax = false  # Use a fun parallax-like fixed background effect? true/false
-height = "400px"
+
   
   # Text color (true=light or false=dark).
   text_color_light = true
