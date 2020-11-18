@@ -10,10 +10,10 @@ links:
   name: Habitat Suitability 
   url: files/project-htmls/CA_Chukar.html
 slides: example
-summary: yes
+summary: A method to reduce correlative effects in variable seelection in random forest models
 tags:
 - Deep Learning
-title: yes as well 
+title: Daisugi for random forest models 
 url_code: "files/project-htmls/CA_Chukar.html"
 url_pdf: ""
 url_slides: ""
