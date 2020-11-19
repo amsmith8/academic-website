@@ -9,8 +9,8 @@ title = ""
 
 # Hero image (optional). Enter filename of an image in the `static/img/` folder.
 hero_media = "heron.jpeg"
-{{$image := $resource.Fit "600x400"}}
-
+width = "1300px"
+height = "400px"
 
 [design.background]
   # Apply a background color, gradient, or image.
