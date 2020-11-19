@@ -12,7 +12,7 @@ links:
 slides: 
 summary: Add a better summary 
 tags:
-- Deep Learning
+- Avian
 title: Understanding the ecological impact of the invasive Egyptian Goose 
 url_code: ""
 url_pdf: ""
