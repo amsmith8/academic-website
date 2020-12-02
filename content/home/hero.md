@@ -2,15 +2,15 @@
 # Hero widget.
 widget = "hero"  # See https://sourcethemes.com/academic/docs/page-builder/
 headless = true  # This file represents a page section.
-active = true  # Activate this widget? true/false
+active = false  # Activate this widget? true/false
 weight = 10  # Order that this section will appear.
 
 title = ""
 
 # Hero image (optional). Enter filename of an image in the `static/img/` folder.
-hero_media = "heron.jpeg"
-width = "1300px"
-height = "400px"
+hero_media = ""
+#width = "1300px"
+#height = "400px"
 
 [design.background]
   # Apply a background color, gradient, or image.
