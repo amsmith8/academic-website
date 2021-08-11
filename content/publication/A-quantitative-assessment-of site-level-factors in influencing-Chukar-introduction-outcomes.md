@@ -1,5 +1,5 @@
 +++
-title = "A quantitative assessment of site-level factors in influencing Chukar (*Alectoris chukar*) introduction outcomes"
+title = "A quantitative assessment of site-level factors in influencing Chukar (Alectoris chukar) introduction outcomes"
 
 # Date first published.
 date = "2021-04-16"
