@@ -1,11 +1,11 @@
 +++
-title = "A quantitative assessment of site-level factors in influencing Chukar (*Alectoris chukar*) introduction outcomes"
+title = "A quantitative assessment of site-level factors in influencing Chukar (*Alectoris* *chukar*) introduction outcomes"
 
 # Date first published.
 date = "2021-04-16"
 
 # Authors. Comma separated list, e.g. `["Bob Smith", "David Jones"]`.
-authors = ["Austin M. Smith", "Wendell P. Cropper Jr.", "Michael P. Moulton"]
+authors = ["**Austin** **M.** **Smith**", "Wendell P. Cropper Jr.", "Michael P. Moulton"]
 
 # Publication type.
 # Legend:
