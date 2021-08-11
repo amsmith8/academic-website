@@ -1,7 +1,7 @@
 ---
 authors: 
 - admin
-bio: theoretical ecology; species invasions;  niche structure and habitat suitability;  epidemiological pathway modeling
+bio: theoretical ecology; species invasions;  niche structure and habitat suitability; epidemiological pathway modeling
   
 education: 
   courses:
@@ -31,7 +31,7 @@ organizations:
 - name: Department of Integrative Biology, University of South Florida
   url: "http://biology.usf.edu/ib/"
   
-role: Reserach Assistant, PhD student
+role: Research Associate, PhD student
 
 social:
 - icon: envelope
@@ -51,7 +51,7 @@ social:
   link: https://www.researchgate.net/profile/Austin_Smith33
   
 superuser: true
-title: Austin M. Smith
+title: Austin M. Smith, MS
 user_groups:
 - Researchers
 - Visitors
