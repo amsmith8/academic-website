@@ -19,7 +19,7 @@ authors = ["Austin M. Smith", "Wendell P. Cropper Jr.", "Michael P. Moulton"]
 publication_types = ["2"]
 
 # Publication name and optional abbreviated version.
-publication = "In *PeerJ*
+publication = "In *PeerJ*"
 publication_short = "In *PeerJ*"
 
 # Abstract and optional shortened version.
