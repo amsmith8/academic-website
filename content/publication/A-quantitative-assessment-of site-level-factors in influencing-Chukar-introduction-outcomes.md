@@ -40,7 +40,7 @@ selected = true
 projects = []
 
 # Links (optional).
-url_pdf = "static/Paper_PDFs/peerj-11280.pdf"
+url_pdf = ""
 url_preprint = ""
 url_code = ""
 url_dataset = ""
