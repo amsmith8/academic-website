@@ -1,5 +1,5 @@
 +++
-title = "A quantitative assessment of site-level factors in influencing Chukar (Alectoris chukar) introduction outcomes"
+title = "A quantitative assessment of site-level factors in influencing Chukar (*Alectoris chukar*) introduction outcomes"
 
 # Date first published.
 date = "2021-04-16"
@@ -19,7 +19,7 @@ authors = ["Austin M. Smith", "Wendell P. Cropper Jr.", "Michael P. Moulton"]
 publication_types = ["2"]
 
 # Publication name and optional abbreviated version.
-publication = "In *PeerJ*. 
+publication = "In *PeerJ*
 publication_short = "In *PeerJ*"
 
 # Abstract and optional shortened version.
@@ -40,7 +40,7 @@ selected = true
 projects = []
 
 # Links (optional).
-url_pdf = ""
+url_pdf = 
 url_preprint = ""
 url_code = ""
 url_dataset = ""
@@ -68,3 +68,4 @@ caption = "My caption 😄"
 
 +++
 
+Further details on your publication can be written here using *Markdown* for formatting. This text will be displayed on the Publication Detail page.
