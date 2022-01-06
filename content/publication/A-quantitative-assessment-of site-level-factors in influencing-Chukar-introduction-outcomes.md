@@ -42,7 +42,7 @@ projects = []
 # Links (optional).
 url_pdf = ""
 url_preprint = ""
-url_code = ""
+url_code = "https://github.com/amsmith8/A-quantitative-assessment-of-site-level-factors-in-influencing-Chukar-introduction-outcomes"
 url_dataset = ""
 url_project = ""
 url_slides = ""
