@@ -4,6 +4,11 @@ author: "Frida Gomam"
 date: 2015-07-23T21:13:14-05:00
 categories: ["R"]
 tags: ["R Markdown", "plot", "regression"]
+image:
+  placement: 1
+  caption: 'Comic from [Pinterest](https://www.pinterest.com/pin/106819822383177324/?lp=true)'
+  focal_point: ''
+  preview_only: false
 ---
 
 ```{r setup, include=FALSE}
