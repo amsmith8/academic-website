@@ -3,13 +3,13 @@ authors:
 - admin
 
 categories:
-- Demo
+- News
 
 date: "2021-04-20T00:00:00Z"
 draft: false
 featured: false
 image:
-  caption: ''
+  caption: 'Image credit: [**Unsplash**](https://unsplash.com/photos/CpkOjOcXdUY)'
   focal_point: ""
   placement: 2
   preview_only: false
