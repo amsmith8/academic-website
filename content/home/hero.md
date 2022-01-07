@@ -18,6 +18,10 @@ hero_media = "trial_scree.shot.png"
   #   Choose a light or dark text color by setting `text_color_light`.
   #   Any HTML color name or Hex value is valid.
 
+[design.spacing]
+  # Customize the section spacing. Order is top, right, bottom, left.
+  padding = ["25px", "0", "200px", "0"]
+
   # Background color.
   # color = ""
   
