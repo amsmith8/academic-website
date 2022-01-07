@@ -11,7 +11,7 @@ featured: false
 image:
   caption: 'Image credit: [**Unsplash**](https://unsplash.com/photos/CpkOjOcXdUY)'
   focal_point: ""
-  placement: 2
+  placement: 1
   preview_only: false
 lastmod: "2019-04-17T00:00:00Z"
 projects: []
