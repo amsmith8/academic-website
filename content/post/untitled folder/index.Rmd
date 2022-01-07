@@ -1,0 +1,3291 @@
+---
+title: "Deep learning for species distribution models"
+author: "Austin M. Smith, Andrew M. Kramer, César Capinha"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.dim = c(8, 6), fig.align = 'center', echo = TRUE)
+```
+
+### Project Overview
+
+
+Species distribution models (SDMs) have become indispensable tools for relating species occurrences to environmental conditions. Most commonly, these models utilize machine learning algorithms to statistically evaluate environmental covariates to determine the relative suitability of locations on the landscape (e.g., [Elith & Leathwick 2009](https://doi.org/10.1146/annurev.ecolsys.110308.120159)). Machine learning is a supervised learning framework; that is, models are fitted to training examples that consist of measured correlates and a desired output value ([Hastie et al. 2009](https://link.springer.com/book/10.1007/978-0-387-84858-7); [James et al. 2013](https://link.springer.com/content/pdf/10.1007/978-1-4614-7138-7.pdf); [Kuhn & Johnson 2013](https://link.springer.com/book/10.1007/978-1-4614-6849-3)). These models are then used in predicting the outcome of novel data. 
+
+While these models are useful at estimating a species range, an extensive amount of literature exists pertaining to the limitations of SDMs (e.g., [Pearson & Dawson 2003]( https://doi.org/10.1046/j.1466-822X.2003.00042.x) ; [Hijmans 2012](https://doi.org/10.1890/11-0826.1); [Melanesi et al. 2019](https://doi.org/10.1002/ece3.5938) ; [Norberg et al. 2019]( https://doi.org/10.1002/ecm.1370)).  Currently these models are limited to static predictors, usually constructed from averaging climate data over extended periods. Deep learning neural networks (DLNN) have been used in other fields of research to interpret time series dynamics and can be used to fit SDMs without averaging or simplifying input data, and enable dynamic processes to better inform the models ([Capinha et al. 2021](https://doi.org/10.1016/j.ecoinf.2021.101252)).
+
+The goal of our study was to expand on the findings in [Capinha et al. (2021)](https://doi.org/10.1016/j.ecoinf.2021.101252) by evaluating the predictive potential of time series deep learning models. We used 30 years of monthly bioclimatic data to predict species distribution for four previously studied, globally invasive species. We then compared four deep-learning architectures to three favored machine learning methods trained on 19 static predictors.
+
+### Methods
+
+#### Software
+
+ We used a combination of R (https://www.r-project.org) and Python (https://www.python.org) for all of our data pre-processing, computations, and graphics. Our time series analysis was performed in Python with Keras (https://keras.io) and  TensorFlow (https://www.tensorflow.org) deep learning suites, and the time series analsyis package,  mcfly ([van Kuppevelt et al. 2020](https://doi.org/10.1016/j.softx.2020.100548)).  We used several R geospatial packages for traditional static modeling procedures (for an in depth tutorial of this, check the official R-Spatial [website](https://rspatial.org/raster/sdm/index.html)). 
+
+```{r include=FALSE}
+
+library(raster)
+library(dismo)
+library(maptools)
+data(wrld_simpl)
+
+source("./R/Functions.R")
+
+boar =  read.csv( "./Data/data_raw/Sales_et_al_2017_boar.csv" )
+parakeet = read.csv( "./Data/data_raw/Bohl_et_al_2019_parakeet.csv" )
+kudzu = read.csv( "./Data/data_raw/Callen_and_miller_2015_kudzu.csv" )
+ladybird = read.csv( "./Data/data_raw/Berdinger_et_al_2015_ladybird.csv" ) 
+
+monkeyflower_train <- read.csv( "./Data/data_raw/Angert_et_al_2018_Monkeyflower_train.csv" )
+monkeyflower_test <- read.csv( "./Data/data_raw/Angert_et_al_2018_Monkeyflower_test.csv" )
+
+us_ext <- extent( -146.337891 , 17.182779 , -47.373047 , 55.850650 )
+mf_ext <- extent( -125.156250 , 32.287133 , -110.917969 , 49.439557 )
+
+
+```
+
+#### Species data {.tabset .tabset-pills}
+
+We used occurrence records from four previously published SDM studies pertaining to invasive species for our analysis:  Wild Boar (*Sus scrofa* ; [Sales et al. 2017](https://doi.org/10.1111/1365-2656.12721)), Kudzu (*Pueraria montana* ; [Callen & Miller 2015](https://doi.org/10.1111/ddi.12341)), Asian Harlequin ladybird (*Harmonia axyridis* ; [Bidinger et al. 2012](https://doi.org/10.1111/j.1439-0418.2010.01598.x)), and Monk Parakeet (*Myiopsitta monachus* ; [Bohl et al. 2019](https://doi.org/10.1111/jbi.13573)).
+
+In addition to the global invasive models, we reviewed a study pertaining to scarlet monkeyflower (*Erythranthe cardinalis* ; [Angert et al. (2018)](https://doi.org/10.1086/695984)), a native plant to western California and Oregon, United Sates.  In this study, historical occurrences (n = 431) were collected for model training, pseudo-absences  were extracted from  donut-like buffers  with the center/occurrences removed, and tested using field records collected to validate model performance, and to evaluate habitat for potential range expansion. Note, the testing records consist of both presence and true-absences (e.g., P/A modeling). 
+
+We replicated the methods used in [Angert et al. (2018)](https://doi.org/10.1086/695984) for creating our data set:
+
+* Created donut-like buffers around each point ( outer radius = 80km ; inner radius = 600m ) 
+* Collect random pseudo-absences from buffer( n = 1000 ). 
+* Test models on validation dataset 
+
+Here, the validation data provided consists for 240 observations: 96 presences; and 144 absences.
+
+Ideally, SDMs are built using both presence and absence records; however, absences are often not recorded. A reasonable alternative is to use pseudo-absence or background points, which are data points pulled from areas assumed to be less suitable due to the lack of recorded occurrences (...).  We chose to use two spatial extents for our modeling procedure.  First, we randomly sampled 10,000 terrestrial background points from a global buffer. Next we chose to construct a 100KM buffer around our occurrence points and merged these polygons to create a reduced spatial extent/study region, and then sample an additional 10,000 background points. 
+
+
+
+##### Boar 
+```{r echo=FALSE}
+
+#par(mfrow=c(2,2))
+plot(wrld_simpl , main = "Wild Boar Occurrences", axes = TRUE, col= "light yellow")
+points(boar$long , boar$lat, col = "red" )
+
+```
+
+##### Kudzu
+```{r echo=FALSE}
+
+plot(wrld_simpl , main = "Kudzu Occurrences", axes = TRUE, col="light yellow")
+points(kudzu$long , kudzu$lat, col = "red" )
+```
+
+##### Ladybird
+```{r echo=FALSE}
+
+plot(wrld_simpl , main = "Ladybird Beetle Occurrences", axes = TRUE, col="light yellow")
+points(ladybird $long , ladybird $lat, col = "red" )
+
+
+```
+
+##### Parakeet
+```{r echo=FALSE}
+
+plot(wrld_simpl , main = " Monk Parakeet Occurrences", axes = TRUE, col="light yellow")
+points(parakeet$long , parakeet$lat, col = "red" )
+
+```
+
+##### Monkeyflower
+```{r echo=FALSE}
+
+mf_circles <- circles( monkeyflower_train , d = 80000, dissolve=TRUE , lonlat=TRUE )
+
+plot( wrld_simpl , main = " Monkeyflower  Occurrences", axes = TRUE, col="light yellow" , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) )
+plot( mf_circles , col = "azure2" , add = TRUE ) 
+points( monkeyflower_train$lon , monkeyflower_train$lat , col = "red" )
+
+```
+
+*Note:* Gray region above is the study area for which background points were extracted.  The red points are the training points.
+
+
+#### {-}
+
+
+
+#### Bioclimatic covariates
+
+A common procedure when building an SDM is to model the bioclimatic envelope, the geographic space that measures the relationship between species occurrences and regional climate (e.g. [Hutchinson 1957](doi:10.1101/SQB.1957.022.01.039) [Guisan & Zimmermann 2000](https://doi.org/10.1016/S0304-3800(00)00354-9) ; [Pearson et al. 2002](https://doi.org/10.1016/S0304-3800(02)00056-X) ; [Pearson & Dawson 2003]( https://doi.org/10.1046/j.1466-822X.2003.00042.x)). WorldClim ([Fick & Hijmans 2017](https://doi.org/10.1002/joc.5086)), a set of raster files with embedded climate data, is often used in building SDMs, particularly the 19 bioclimatic variables (BIO).  These variables are calculated by using monthly measured precipitation, maximum & minumum temperatures, and site altitude, over a 30 year window (1970-2000 for ver.2 ). 
+
+We used the BIO variables for our static machine learning models. For our time series models, we used the raw monthly measurements for our time steps over the same time frame ( 360 time steps) These rasters can also be found on the WorldClim website (https://worldclim.org). 
+
+#### Algorithms
+
+There are 4 deep learning architectures provided by Keras that we used for our model building:
+
+1. Convolutional neural networks (CNN)
+2. Recurrent neural networks (RNNs)
+3. Residual networks (ResNet)
+4. Inception time networks 
+
+All of these methods are extensions on the multi-layer perceptron, usually referred to as Artificial Neural Networks (ANN).  Traditionally, ANNs are feed-forward, have a fully connected network, and trained with back propagation and/or gradient descent learning algorithms. ANNs are especially helpful when computations are needed on large, complex data sets; however, this sort of power also leads to over-fitting. This is because the data are transformed using smoothing kernels at several steps within the learning procedure. The deep-learning architectures mentioned above were created to overcome this  by studying the raw data patterns directly.  Also, DLNNs are not entirely feed-forward; hat is, they tend to learn and self-correct at various steps in the internal processing instead after each learning iteration or epoch.   
+
+For comparitive purposes, we used 3 popular and highly-productive machine learning algorithms for our static data analysis: Gradient Booosting Machines (GBM; e.g.,[Friedman 2001]( https://doi.org/10.1890/0012-9658(2007)88[243:BTFEMA]2.0.CO;2) [De'Ath 2007]( https://doi.org/10.1890/0012-9658(2007)88[243:BTFEMA]2.0.CO;2) ; [Elith et al. 2008](https://doi.org/10.1111/j.1365-2656.2008.01390.x) );  Maximum Entropy (MaxEnt; [Phillips et al. 2006](https://doi.org/10.1016/j.ecolmodel.2005.03.026) ; [Elith et al. 2011](https://doi.org/10.1111/j.1472-4642.2010.00725.x) ) ; and  Random Forest (RF;  [Brieman 2001](https://link.springer.com/article/10.1023/A:1010933404324) ; [Cutler et al. 2007](https://doi.org/10.1890/07-0539.1) ; [Evans et al. 2011](https://link.springer.com/chapter/10.1007/978-1-4419-7390-0_8) )
+
+
+
+#### Modeling framework 
+
+##### Time series deep learning 
+
+For each species, we collected a bootstrap-sample of occurrences to match the number of background points, and  compiled our presence and background points into a a single, balanced data frame. We then extracted the values of each covariate at each time step for these points. Next we partitioned our data into several groups for the modeling procedure:
+
+* train data set for candidate models (~35%; **At**) 
+* validation data set for candidate models (~35%; **Av**) 
+* At + Av, or train data set for selected model (~70%;  **Bt**) 
+* validation data set for selecting # of epochs (~15%; **Bv**) 
+* final reporting of classification performance (~15%; **T**) 
+
+Once the data were partitioned the modeling procedure was as follows:
+
+1. Create 5 randomly assembled models of each architecture (20 total candidate models).
+    + Candidate models are built using **At** 
+    + Evaluated using **Av** and classification accuracy
+    + Run four epochs for each model  
+    + Evaluated using classification accuracy 
+2. Choose the best model, or the candidate with highest accuracy score.
+3. Run 50 epochs 
+    + In each epoch, the model is built using **Bt**
+    + Evaluate model with **Bv**, calaculate accuracy and Area Under the receiver operating Curve (AUC)   
+    + Each epoch updates internal parameters to improve model performance
+4. Choose epoch model with best AUC as final model
+5. Test model predictions using **T**
+6. Calculate the AUC 
+
+
+For the Monkeyflower models, we used a slightly different approach.  The testing set in the [Angert et al. (2018)](https://doi.org/10.1086/695984) study was used for **T**.  We then partitioned the sample from the training points to to match the 35:35:15:15 used in the other models.
+
+##### Static machine learning 
+
+Three static model sampling architectures were used for comparison:
+
+1. Balanced-BIO 
+    +  We used the same samples in **Bt** and **T** DLNNs to build and test our static models. The 19 BIO covariates were used in these models
+2. Imbalanced-BIO
+    + The common approach of taking the relatively small set of presence points and a significantly larger sample of background points and partitioning them into a train and test set.  Here we split both our occurrence  and background data 70:30 (train:test).  The 19 BIO covariates were used in these models
+3. Balanced-WC
+    + Similar to the Balanced-BIO, except we used the 4 WorldClim variables. We used altitude rsater and created three rasters for static covariates:  maximum measured temperature; minimum measured temperature; and averaged monthly precipitation.  
+
+For all three architectures, AUC was calculated for model comparison. 
+
+### Results {.tabset .tabset-pills}
+
+#### 1000km {.tabset .tabset-pills}
+
+
+```{r include=FALSE}
+
+# Import training accuracies for comparison
+training_acc_1000km <- read.csv("./Results_deep_learning/Accuracy_scores_1000km.csv")
+
+
+
+# Import data for each species 
+
+# AUCs 
+auc_boar_1000km <- calc_epoch_aucs( 49 , path = "./Results_deep_learning/Boar/Boar_1000km/" )
+auc_kudzu_1000km <- calc_epoch_aucs( 49 , path = "./Results_deep_learning/Kudzu/Kudzu_1000km/" )
+auc_ladybird_1000km <- calc_epoch_aucs( 49 , path = "./Results_deep_learning/Ladybird/Ladybird_1000km/" )
+auc_parakeet_1000km <- calc_epoch_aucs( 49 , path = "./Results_deep_learning/Parakeet/Parakeet_1000km/" )
+
+n_epochs <- c(1:50)
+
+# Max Points - Boar 
+boar_max_train_1000km <- which( training_acc_1000km$Boar == max( training_acc_1000km$Boar) , arr.ind = TRUE )
+boar_max_auc_1000km <- which( auc_boar_1000km == max( auc_boar_1000km ) , arr.ind = TRUE )
+
+# Max Points - Kudzu
+kudzu_max_train_1000km <- which( training_acc_1000km$Kudzu == max( training_acc_1000km$Kudzu ) , arr.ind = TRUE ) 
+kudzu_max_auc_1000km <- which( auc_kudzu_1000km == max( auc_kudzu_1000km ) , arr.ind = TRUE )
+
+# Max Points - Ladybird
+ladybird_max_train_1000km <- which( training_acc_1000km$Ladybird  == max( training_acc_1000km$Ladybird ) , arr.ind = TRUE )
+ladybird_max_auc_1000km <- which(auc_ladybird_1000km  == max(auc_ladybird_1000km ) , arr.ind = TRUE )
+
+# Max Points - Parakeet 
+parakeet_max_train_1000km <- which(training_acc_1000km$Parakeet == max(training_acc_1000km$Parakeet), arr.ind = TRUE )
+parakeet_max_auc_1000km <- which( auc_parakeet_1000km == max( auc_parakeet_1000km ) , arr.ind = TRUE )
+
+library(ggpubr)
+```
+
+##### DL Epoch Selection 
+```{r echo=FALSE}
+
+# Boar 
+boar_data_1000km <- data.frame( n_epochs , training_acc_1000km$Boar , auc_boar_1000km )
+colnames( boar_data_1000km ) <- c( "epoch" , "train accuracy" , " auc" )
+boar_melt_1000km <- reshape2::melt( boar_data_1000km , id.var='epoch' ) 
+boar_plot_1000km <- ggline(  data = boar_melt_1000km ,
+                      x = "epoch" , 
+                      y = "value" , 
+                      color = "variable",
+                      palette = c( "Forestgreen" ,# "Orange",
+                                   "Blue" ) ,
+                      fill = "variable",   
+                      shape = 1 , 
+                      #size = 2 ,
+                      plot_type = "b" ) +
+  annotate( "point" , x = boar_max_train_1000km , y = max(boar_data_1000km$`train accuracy` ) , colour = "Forestgreen" , size = 4 ) +
+  annotate( "point" , x = boar_max_auc_1000km[1,1] , y = max( boar_data_1000km$` auc` ) , colour = "Blue" , size = 4 ) 
+
+
+
+
+# Kudzu
+kudzu_data_1000km <- data.frame( n_epochs , training_acc_1000km$Kudzu , auc_kudzu_1000km )
+colnames(kudzu_data_1000km) <- c("epoch" , "train accuracy" , " auc" )
+kudzu_melt_1000km <- reshape2::melt( kudzu_data_1000km , id.var='epoch' )
+kudzu_plot_1000km <- ggline(  data = kudzu_melt_1000km ,
+                       x = "epoch" ,
+                       y = "value" ,
+                       color = "variable",
+                       palette = c( "Forestgreen" ,# "Orange", 
+                                    "Blue" ) ,
+                       fill = "variable",
+                       shape = 1 ,
+                       #size = 2 ,
+                       plot_type = "b" ) +
+  annotate("point", x = kudzu_max_train_1000km , y = max(kudzu_data_1000km$`train accuracy` ), colour = "Forestgreen" , size = 4 ) +
+  annotate("point", x = kudzu_max_auc_1000km[,1] , y = max(kudzu_data_1000km$` auc`) , colour = "Blue" , size = 4 )
+
+# Ladybird
+ladybird_data_1000km <- data.frame( n_epochs , training_acc_1000km$Ladybird ,auc_ladybird_1000km )
+colnames(ladybird_data_1000km) <- c("epoch" , "train accuracy" , " auc" )
+ladybird_melt_1000km <- reshape2::melt( ladybird_data_1000km , id.var='epoch' )
+ladybird_plot_1000km <- ggline(  data = ladybird_melt_1000km ,
+                          x = "epoch" ,
+                          y = "value" ,
+                          color = "variable",
+                          palette = c( "Forestgreen" , #"Orange", 
+                                       "Blue" ) ,
+                          fill = "variable",
+                          shape = 1 ,
+                          #size = 2 ,
+                          plot_type = "b" ) +
+  annotate("point", x = ladybird_max_train_1000km , y = max( ladybird_data_1000km$`train accuracy` ), colour = "Forestgreen" , size = 4 ) +
+  annotate("point", x = ladybird_max_auc_1000km[,1] , y = max(ladybird_data_1000km$` auc`) , colour = "Blue" , size = 4 )
+
+# Parakeet 
+parakeet_data_1000km <- data.frame( n_epochs , training_acc_1000km$Parakeet ,  auc_parakeet_1000km )
+colnames(parakeet_data_1000km) <- c("epoch" , "train accuracy" ,  " auc" )
+parakeet_melt_1000km <- reshape2::melt( parakeet_data_1000km , id.var='epoch' ) 
+parakeet_plot_1000km <- ggline(  data = parakeet_melt_1000km ,
+                          x = "epoch" , 
+                          y = "value" , 
+                          color = "variable",
+                          palette = c( "Forestgreen" , #"Orange",  
+                                       "Blue" ) ,
+                          fill = "variable",   
+                          shape = 1 , 
+                          #size = 2 ,
+                          plot_type = "b" ) +
+  annotate("point", x = parakeet_max_train_1000km, y = max(parakeet_data_1000km$`train accuracy` ), colour = "Forestgreen" , size = 4 ) +
+  annotate("point", x = parakeet_max_auc_1000km[,1] , y = max( parakeet_data_1000km$` auc`) , colour = "Blue" , size = 4 )
+
+# Combine all 
+ggarrange( boar_plot_1000km +  rremove("xlab") +  rremove("x.text")  ,
+           kudzu_plot_1000km +  rremove("xlab") +  rremove("x.text")  + rremove("y.axis") + rremove("ylab") +  rremove("y.text") + rremove( "y.ticks" ) ,
+           ladybird_plot_1000km , 
+           parakeet_plot_1000km + rremove("y.axis") +  rremove("ylab") +  rremove("y.text") + rremove( "y.ticks" ) ,
+           ncol = 2 ,
+           nrow = 2, 
+           labels = "auto",
+           common.legend = TRUE)
+
+#print( "a.) Wild Boar, b.) Kudzu, c.) Ladybird d.) Monk Parakeet")
+
+```
+__a.)__ Wild Boar    __b.)__ Kudzu     __c.)__ Ladybird     __d.)__ Monk Parakeet
+
+
+##### Model comparison {.tabset .tabset-pills}
+```{r include=FALSE}
+
+# worldclim
+Static_model_worldclim_balanced_results_Boar_1000km <- readRDS("./Results_static_models/Static_model_worldclim_balanced_results_Boar_1000km.rds")
+Static_model_worldclim_balanced_results_Kudzu_1000km <- readRDS("./Results_static_models/Static_model_worldclim_balanced_results_Kudzu_1000km.rds")
+Static_model_worldclim_balanced_results_Ladybird_1000km <- readRDS("./Results_static_models/Static_model_worldclim_balanced_results_Ladybird_1000km.rds")
+Static_model_worldclim_balanced_results_Parakeet_1000km <- readRDS("./Results_static_models/Static_model_worldclim_balanced_results_Parakeet_1000km.rds")
+
+
+# bioclim -balanced
+Static_model_bioclim_balanced_results_Boar_1000km <- readRDS("./Results_static_models/Static_model_bioclim_balanced_results_Boar_1000km.rds")
+Static_model_bioclim_balanced_results_Kudzu_1000km <- readRDS("./Results_static_models/Static_model_bioclim_balanced_results_Kudzu_1000km.rds")
+Static_model_bioclim_balanced_results_Ladybird_1000km <- readRDS("./Results_static_models/Static_model_bioclim_balanced_results_Ladybird_1000km.rds")
+Static_model_bioclim_balanced_results_Parakeet_1000km <- readRDS("./Results_static_models/Static_model_bioclim_balanced_results_Parakeet_1000km.rds")
+
+
+# bioclim -imimbalanced
+Static_model_bioclim_imbalanced_results_Boar_1000km <- readRDS("./Results_static_models/Static_model_bioclim_imbalanced_results_Boar_1000km.rds")
+Static_model_bioclim_imbalanced_results_Kudzu_1000km <- readRDS("./Results_static_models/Static_model_bioclim_imbalanced_results_Kudzu_1000km.rds")
+Static_model_bioclim_imbalanced_results_Ladybird_1000km <- readRDS("./Results_static_models/Static_model_bioclim_imbalanced_results_Ladybird_1000km.rds")
+Static_model_bioclim_imbalanced_results_Parakeet_1000km <- readRDS("./Results_static_models/Static_model_bioclim_imbalanced_results_Parakeet_1000km.rds")
+
+
+library("pROC")
+library("readr")
+final_auc_Boar_1000km <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Boar_1000km.csv" ,  col_names = FALSE ) )$X1 , 
+                       data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Boar_1000km.csv" ,  col_names = FALSE ) )$X1 )$auc
+
+final_auc_Kudzu_1000km <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Kudzu_1000km.csv" ,  col_names = FALSE ) )$X1 , 
+                        data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Kudzu_1000km.csv" ,  col_names = FALSE ) )$X1 )$auc
+
+final_auc_Ladybird_1000km <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Ladybird_1000km.csv" ,  col_names = FALSE ) )$X1 , 
+                           data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Ladybird_1000km.csv" ,  col_names = FALSE ) )$X1 )$auc
+
+final_auc_Parakeet_1000km <-   roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Parakeet_1000km.csv" ,  col_names = FALSE ) )$X1 ,
+                             data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Parakeet_1000km.csv" ,  col_names = FALSE ) )$X1 )$auc
+
+types <- c("DLNN" , "GBM" , "MaxEnt" , "RF")
+
+col = c(  "white", "darkorange", "white",
+          "forestgreen", "goldenrod2" , "cornflowerblue",
+          "forestgreen", "goldenrod2" , "cornflowerblue",
+          "forestgreen", "goldenrod2" , "cornflowerblue" )
+
+```
+
+###### Boar
+
+```{r echo=FALSE}
+
+DL <-  c( 0 , final_auc_Boar_1000km , 0 )
+WC_bal <- c( Static_model_worldclim_balanced_results_Boar_1000km[ , 1 ] )
+Bio_bal <- c( Static_model_bioclim_balanced_results_Boar_1000km[ , 1 ] )
+Bio_imbal <- c( Static_model_bioclim_imbalanced_results_Boar_1000km[ , 1 ] )
+M_1000km <- as.matrix( data.frame( DL , WC_bal , Bio_bal , Bio_imbal ) )
+
+par( mar = c( 5 , 4 , 4 , 5 ), xpd = TRUE )
+barplot( M_1000km  ,  beside = TRUE , col = col , ylim = c( 0 , 1 ) )
+legend( "right" , inset = c( - 0.1 , 0 ) , types , cex=0.6 , title = "Algorithm" ,
+       fill=c( "darkorange" , "forestgreen" , "goldenrod2" , "cornflowerblue" ) )
+title( "Model Predictions - Wild Boar" , line = + 3 )
+
+# Insert values manually
+
+text(2.5 , M_1000km[ 2 , 1 ] + 0.05 , round( M_1000km[ 2 , 1 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(5.5 , M_1000km[ 1 , 2 ] + 0.05 , round( M_1000km[ 1 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(6.5 , M_1000km[ 2 , 2 ] + 0.05 , round( M_1000km[ 2 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(7.5 , M_1000km[ 3 , 2 ] + 0.05 , round( M_1000km[ 3 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(9.5 , M_1000km[ 1 , 3 ] + 0.05 , round( M_1000km[ 1 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(10.5 , M_1000km[ 2 , 3 ] + 0.05 , round( M_1000km[ 2 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(11.5 , M_1000km[ 3 , 3 ] + 0.05 , round( M_1000km[ 3 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(13.5 , M_1000km[ 1 , 4 ] + 0.05 , round( M_1000km[ 1 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(14.5 , M_1000km[ 2 , 4 ] + 0.05 , round( M_1000km[ 2 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(15.5 , M_1000km[ 3 , 4 ] + 0.05 , round( M_1000km[ 3 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+
+```
+
+
+###### Kudzu
+
+```{r echo=FALSE}
+
+DL <-  c( 0 , final_auc_Kudzu_1000km , 0 )
+WC_bal <- c( Static_model_worldclim_balanced_results_Kudzu_1000km[ , 1 ] )
+Bio_bal <- c( Static_model_bioclim_balanced_results_Kudzu_1000km[ , 1 ] )
+Bio_imbal <- c( Static_model_bioclim_imbalanced_results_Kudzu_1000km[ , 1 ] )
+M_1000km <- as.matrix( data.frame( DL , WC_bal , Bio_bal , Bio_imbal ) )
+
+par( mar = c( 5 , 4 , 4 , 5 ), xpd = TRUE )
+barplot( M_1000km  ,  beside = TRUE , col = col , ylim = c( 0 , 1 ) )
+legend( "right" , inset = c( - 0.1 , 0 ) , types , cex=0.6 , title = "Algorithm" ,
+       fill=c( "darkorange" , "forestgreen" , "goldenrod2" , "cornflowerblue" ) )
+title( "Model Predictions - Kudzu" , line = + 3 )
+
+# Insert values manually
+
+text(2.5 , M_1000km[ 2 , 1 ] + 0.05 , round( M_1000km[ 2 , 1 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(5.5 , M_1000km[ 1 , 2 ] + 0.05 , round( M_1000km[ 1 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(6.5 , M_1000km[ 2 , 2 ] + 0.05 , round( M_1000km[ 2 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(7.5 , M_1000km[ 3 , 2 ] + 0.05 , round( M_1000km[ 3 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(9.5 , M_1000km[ 1 , 3 ] + 0.05 , round( M_1000km[ 1 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(10.5 , M_1000km[ 2 , 3 ] + 0.05 , round( M_1000km[ 2 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(11.5 , M_1000km[ 3 , 3 ] + 0.05 , round( M_1000km[ 3 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(13.5 , M_1000km[ 1 , 4 ] + 0.05 , round( M_1000km[ 1 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(14.5 , M_1000km[ 2 , 4 ] + 0.05 , round( M_1000km[ 2 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(15.5 , M_1000km[ 3 , 4 ] + 0.05 , round( M_1000km[ 3 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+
+
+```
+
+###### Ladybird
+
+```{r echo=FALSE}
+
+DL <-  c( 0 , final_auc_Ladybird_1000km , 0 )
+WC_bal <- c( Static_model_worldclim_balanced_results_Ladybird_1000km[ , 1 ] )
+Bio_bal <- c( Static_model_bioclim_balanced_results_Ladybird_1000km[ , 1 ] )
+Bio_imbal <- c( Static_model_bioclim_imbalanced_results_Ladybird_1000km[ , 1 ] )
+M_1000km <- as.matrix( data.frame( DL , WC_bal , Bio_bal , Bio_imbal ) )
+
+par( mar = c( 5 , 4 , 4 , 5 ), xpd = TRUE )
+barplot( M_1000km  ,  beside = TRUE , col = col , ylim = c( 0 , 1 ) )
+legend( "right" , inset = c( - 0.1 , 0 ) , types , cex=0.6 , title = "Algorithm" ,
+       fill=c( "darkorange" , "forestgreen" , "goldenrod2" , "cornflowerblue" ) )
+title( "Model Predictions - Ladybird" , line = + 3 )
+
+# Insert values manually
+
+text(2.5 , M_1000km[ 2 , 1 ] + 0.05 , round( M_1000km[ 2 , 1 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(5.5 , M_1000km[ 1 , 2 ] + 0.05 , round( M_1000km[ 1 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(6.5 , M_1000km[ 2 , 2 ] + 0.05 , round( M_1000km[ 2 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(7.5 , M_1000km[ 3 , 2 ] + 0.05 , round( M_1000km[ 3 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(9.5 , M_1000km[ 1 , 3 ] + 0.05 , round( M_1000km[ 1 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(10.5 , M_1000km[ 2 , 3 ] + 0.05 , round( M_1000km[ 2 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(11.5 , M_1000km[ 3 , 3 ] + 0.05 , round( M_1000km[ 3 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(13.5 , M_1000km[ 1 , 4 ] + 0.05 , round( M_1000km[ 1 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(14.5 , M_1000km[ 2 , 4 ] + 0.05 , round( M_1000km[ 2 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(15.5 , M_1000km[ 3 , 4 ] + 0.05 , round( M_1000km[ 3 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+
+```
+
+###### Parakeet
+
+```{r echo=FALSE}
+
+DL <-  c( 0 , final_auc_Parakeet_1000km , 0 )
+WC_bal <- c( Static_model_worldclim_balanced_results_Parakeet_1000km[ , 1 ] )
+Bio_bal <- c( Static_model_bioclim_balanced_results_Parakeet_1000km[ , 1 ] )
+Bio_imbal <- c( Static_model_bioclim_imbalanced_results_Parakeet_1000km[ , 1 ] )
+M_1000km <- as.matrix( data.frame( DL , WC_bal , Bio_bal , Bio_imbal ) )
+
+par( mar = c( 5 , 4 , 4 , 5 ), xpd = TRUE )
+barplot( M_1000km  ,  beside = TRUE , col = col , ylim = c( 0 , 1 ) )
+legend( "right" , inset = c( - 0.1 , 0 ) , types , cex=0.6 , title = "Algorithm" ,
+       fill=c( "darkorange" , "forestgreen" , "goldenrod2" , "cornflowerblue" ) )
+title( "Model Predictions - Parakeet" , line = + 3 )
+
+# Insert values manually
+
+text(2.5 , M_1000km[ 2 , 1 ] + 0.05 , round( M_1000km[ 2 , 1 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(5.5 , M_1000km[ 1 , 2 ] + 0.05 , round( M_1000km[ 1 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(6.5 , M_1000km[ 2 , 2 ] + 0.05 , round( M_1000km[ 2 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(7.5 , M_1000km[ 3 , 2 ] + 0.05 , round( M_1000km[ 3 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(9.5 , M_1000km[ 1 , 3 ] + 0.05 , round( M_1000km[ 1 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(10.5 , M_1000km[ 2 , 3 ] + 0.05 , round( M_1000km[ 2 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(11.5 , M_1000km[ 3 , 3 ] + 0.05 , round( M_1000km[ 3 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(13.5 , M_1000km[ 1 , 4 ] + 0.05 , round( M_1000km[ 1 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(14.5 , M_1000km[ 2 , 4 ] + 0.05 , round( M_1000km[ 2 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(15.5 , M_1000km[ 3 , 4 ] + 0.05 , round( M_1000km[ 3 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+```
+
+##### {-}
+
+#### Global {.tabset .tabset-pills}
+
+
+```{r include=FALSE}
+
+# Import training accuracies for comparison
+training_acc_global <- read.csv("./Results_deep_learning/Accuracy_scores_global.csv")
+
+
+
+# Import data for each species 
+
+# AUCs 
+auc_boar_global <- calc_epoch_aucs( 49 , path = "./Results_deep_learning/Boar/Boar_global/" )
+auc_kudzu_global <- calc_epoch_aucs( 49 , path = "./Results_deep_learning/Kudzu/Kudzu_global/" )
+auc_ladybird_global <- calc_epoch_aucs( 49 , path = "./Results_deep_learning/Ladybird/Ladybird_global/" )
+auc_parakeet_global <- calc_epoch_aucs( 49 , path = "./Results_deep_learning/Parakeet/Parakeet_global/" )
+
+n_epochs <- c(1:50)
+
+# Max Points - Boar 
+boar_max_train_global <- which( training_acc_global$Boar == max( training_acc_global$Boar) , arr.ind = TRUE )
+boar_max_auc_global <- which( auc_boar_global == max( auc_boar_global ) , arr.ind = TRUE )
+
+# Max Points - Kudzu
+kudzu_max_train_global <- which( training_acc_global$Kudzu == max( training_acc_global$Kudzu ) , arr.ind = TRUE ) 
+kudzu_max_auc_global <- which( auc_kudzu_global == max( auc_kudzu_global ) , arr.ind = TRUE )
+
+# Max Points - Ladybird
+ladybird_max_train_global <- which( training_acc_global$Ladybird  == max( training_acc_global$Ladybird ) , arr.ind = TRUE )
+ladybird_max_auc_global <- which(auc_ladybird_global  == max(auc_ladybird_global ) , arr.ind = TRUE )
+
+# Max Points - Parakeet 
+parakeet_max_train_global <- which(training_acc_global$Parakeet == max(training_acc_global$Parakeet), arr.ind = TRUE )
+parakeet_max_auc_global <- which( auc_parakeet_global == max( auc_parakeet_global ) , arr.ind = TRUE )
+
+library(ggpubr)
+```
+
+##### DL Epoch Selection 
+```{r echo=FALSE}
+
+# Boar 
+boar_data_global <- data.frame( n_epochs , training_acc_global$Boar , auc_boar_global )
+colnames( boar_data_global ) <- c( "epoch" , "train accuracy" , " auc" )
+boar_melt_global <- reshape2::melt( boar_data_global , id.var='epoch' ) 
+boar_plot_global <- ggline(  data = boar_melt_global ,
+                             
+                             x = "epoch" , 
+                             y = "value" , 
+                             color = "variable",
+                             palette = c( "Forestgreen" , "Blue" ) ,
+                             fill = "variable",   
+                            shape = 1 , 
+                           #ylim = c( 80 , 100 ) ,
+                      #size = 2 ,
+                      plot_type = "b" ) +
+  annotate( "point" , x = boar_max_train_global , y = max(boar_data_global$`train accuracy` ) , colour = "Forestgreen" , size = 4 ) +
+  annotate( "point" , x = boar_max_auc_global[1,1] , y = max( boar_data_global$` auc` ) , colour = "Blue" , size = 4 ) 
+
+
+
+
+# Kudzu
+kudzu_data_global <- data.frame( n_epochs , training_acc_global$Kudzu , auc_kudzu_global )
+colnames(kudzu_data_global) <- c("epoch" , "train accuracy" , " auc" )
+kudzu_melt_global <- reshape2::melt( kudzu_data_global , id.var='epoch' )
+kudzu_plot_global <- ggline(  data = kudzu_melt_global ,
+                       x = "epoch" ,
+                       y = "value" ,
+                       color = "variable",
+                       palette = c( "Forestgreen" ,# "Orange", 
+                                    "Blue" ) ,
+                       fill = "variable",
+                       shape = 1 ,
+                       
+                       #size = 2 ,
+                       plot_type = "b" ) +
+  annotate("point", x = kudzu_max_train_global , y = max(kudzu_data_global$`train accuracy` ), colour = "Forestgreen" , size = 4 ) +
+  annotate("point", x = kudzu_max_auc_global[,1] , y = max(kudzu_data_global$` auc`) , colour = "Blue" , size = 4 )
+
+# Ladybird
+ladybird_data_global <- data.frame( n_epochs , training_acc_global$Ladybird ,auc_ladybird_global )
+colnames(ladybird_data_global) <- c("epoch" , "train accuracy" , " auc" )
+ladybird_melt_global <- reshape2::melt( ladybird_data_global , id.var='epoch' )
+ladybird_plot_global <- ggline(  data = ladybird_melt_global ,
+                          x = "epoch" ,
+                          y = "value" ,
+                          color = "variable",
+                          palette = c( "Forestgreen" , #"Orange", 
+                                       "Blue" ) ,
+                          fill = "variable",
+                          shape = 1 ,
+                          
+                          #size = 2 ,
+                          plot_type = "b" ) +
+  annotate("point", x = ladybird_max_train_global , y = max( ladybird_data_global$`train accuracy` ), colour = "Forestgreen" , size = 4 ) +
+  annotate("point", x = ladybird_max_auc_global[,1] , y = max(ladybird_data_global$` auc`) , colour = "Blue" , size = 4 )
+
+# Parakeet 
+parakeet_data_global <- data.frame( n_epochs , training_acc_global$Parakeet ,  auc_parakeet_global )
+colnames(parakeet_data_global) <- c("epoch" , "train accuracy" ,  " auc" )
+parakeet_melt_global <- reshape2::melt( parakeet_data_global , id.var='epoch' ) 
+parakeet_plot_global <- ggline(  data = parakeet_melt_global ,
+                          x = "epoch" , 
+                          y = "value" , 
+                          color = "variable",
+                          palette = c( "Forestgreen" , #"Orange",  
+                                       "Blue" ) ,
+                          fill = "variable",   
+                          shape = 1 , 
+                         
+                          #size = 2 ,
+                          plot_type = "b" ) +
+  annotate("point", x = parakeet_max_train_global, y = max(parakeet_data_global$`train accuracy` ), colour = "Forestgreen" , size = 4 ) +
+  annotate("point", x = parakeet_max_auc_global[,1] , y = max( parakeet_data_global$` auc`) , colour = "Blue" , size = 4 )
+
+# Combine all 
+ggarrange( boar_plot_global +  rremove("xlab") +  rremove("x.text")  ,
+           kudzu_plot_global +  rremove("xlab") +  rremove("x.text")  + rremove("y.axis") + rremove("ylab") +  rremove("y.text") + rremove( "y.ticks" ) ,
+           ladybird_plot_global , 
+           parakeet_plot_global + rremove("y.axis") +  rremove("ylab") +  rremove("y.text") + rremove( "y.ticks" ) ,
+           ncol = 2 ,
+           nrow = 2, 
+           labels = "auto",
+           common.legend = TRUE)
+
+#print( "a.) Wild Boar, b.) Kudzu, c.) Ladybird d.) Monk Parakeet")
+
+```
+__a.)__ Wild Boar    __b.)__ Kudzu     __c.)__ Ladybird     __d.)__ Monk Parakeet
+
+
+##### Model comparison {.tabset .tabset-pills}
+```{r include=FALSE}
+
+# worldclim
+Static_model_worldclim_balanced_results_Boar_global <- readRDS("./Results_static_models/Static_model_worldclim_balanced_results_Boar_global.rds")
+Static_model_worldclim_balanced_results_Kudzu_global <- readRDS("./Results_static_models/Static_model_worldclim_balanced_results_Kudzu_global.rds")
+Static_model_worldclim_balanced_results_Ladybird_global <- readRDS("./Results_static_models/Static_model_worldclim_balanced_results_Ladybird_global.rds")
+Static_model_worldclim_balanced_results_Parakeet_global <- readRDS("./Results_static_models/Static_model_worldclim_balanced_results_Parakeet_global.rds")
+
+
+# bioclim -balanced
+Static_model_bioclim_balanced_results_Boar_global <- readRDS("./Results_static_models/Static_model_bioclim_balanced_results_Boar_global.rds")
+Static_model_bioclim_balanced_results_Kudzu_global <- readRDS("./Results_static_models/Static_model_bioclim_balanced_results_Kudzu_global.rds")
+Static_model_bioclim_balanced_results_Ladybird_global <- readRDS("./Results_static_models/Static_model_bioclim_balanced_results_Ladybird_global.rds")
+Static_model_bioclim_balanced_results_Parakeet_global <- readRDS("./Results_static_models/Static_model_bioclim_balanced_results_Parakeet_global.rds")
+
+
+# bioclim -imimbalanced
+Static_model_bioclim_imbalanced_results_Boar_global <- readRDS("./Results_static_models/Static_model_bioclim_imbalanced_results_Boar_global.rds")
+Static_model_bioclim_imbalanced_results_Kudzu_global <- readRDS("./Results_static_models/Static_model_bioclim_imbalanced_results_Kudzu_global.rds")
+Static_model_bioclim_imbalanced_results_Ladybird_global <- readRDS("./Results_static_models/Static_model_bioclim_imbalanced_results_Ladybird_global.rds")
+Static_model_bioclim_imbalanced_results_Parakeet_global <- readRDS("./Results_static_models/Static_model_bioclim_imbalanced_results_Parakeet_global.rds")
+
+
+library("pROC")
+library("readr")
+final_auc_Boar_global <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Boar_global.csv" ,  col_names = FALSE ) )$X1 , 
+                       data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Boar_global.csv" ,  col_names = FALSE ) )$X1 )$auc
+
+final_auc_Kudzu_global <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Kudzu_global.csv" ,  col_names = FALSE ) )$X1 , 
+                        data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Kudzu_global.csv" ,  col_names = FALSE ) )$X1 )$auc
+
+final_auc_Ladybird_global <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Ladybird_global.csv" ,  col_names = FALSE ) )$X1 , 
+                           data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Ladybird_global.csv" ,  col_names = FALSE ) )$X1 )$auc
+
+final_auc_Parakeet_global <-   roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Parakeet_global.csv" ,  col_names = FALSE ) )$X1 ,
+                             data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Parakeet_global.csv" ,  col_names = FALSE ) )$X1 )$auc
+
+types <- c("DLNN" , "GBM" , "MaxEnt" , "RF")
+
+col = c(  "white", "darkorange", "white",
+          "forestgreen", "goldenrod2" , "cornflowerblue",
+          "forestgreen", "goldenrod2" , "cornflowerblue",
+          "forestgreen", "goldenrod2" , "cornflowerblue" )
+
+```
+
+###### Boar
+
+```{r echo=FALSE}
+
+DL <-  c( 0 , final_auc_Boar_global , 0 )
+WC_bal <- c( Static_model_worldclim_balanced_results_Boar_global[ , 1 ] )
+Bio_bal <- c( Static_model_bioclim_balanced_results_Boar_global[ , 1 ] )
+Bio_imbal <- c( Static_model_bioclim_imbalanced_results_Boar_global[ , 1 ] )
+M_global <- as.matrix( data.frame( DL , WC_bal , Bio_bal , Bio_imbal ) )
+
+par( mar = c( 5 , 4 , 4 , 5 ), xpd = TRUE )
+barplot( M_global  ,  beside = TRUE , col = col , ylim = c( 0 , 1 ) )
+legend( "right" , inset = c( - 0.1 , 0 ) , types , cex=0.6 , title = "Algorithm" ,
+       fill=c( "darkorange" , "forestgreen" , "goldenrod2" , "cornflowerblue" ) )
+title( "Model Predictions - Wild Boar" , line = + 3 )
+
+# Insert values manually
+
+text(2.5 , M_global[ 2 , 1 ] + 0.05 , round( M_global[ 2 , 1 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(5.5 , M_global[ 1 , 2 ] + 0.05 , round( M_global[ 1 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(6.5 , M_global[ 2 , 2 ] + 0.05 , round( M_global[ 2 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(7.5 , M_global[ 3 , 2 ] + 0.05 , round( M_global[ 3 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(9.5 , M_global[ 1 , 3 ] + 0.05 , round( M_global[ 1 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(10.5 , M_global[ 2 , 3 ] + 0.05 , round( M_global[ 2 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(11.5 , M_global[ 3 , 3 ] + 0.05 , round( M_global[ 3 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(13.5 , M_global[ 1 , 4 ] + 0.05 , round( M_global[ 1 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(14.5 , M_global[ 2 , 4 ] + 0.05 , round( M_global[ 2 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(15.5 , M_global[ 3 , 4 ] + 0.05 , round( M_global[ 3 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+
+```
+
+
+###### Kudzu
+
+```{r echo=FALSE}
+
+DL <-  c( 0 , final_auc_Kudzu_global , 0 )
+WC_bal <- c( Static_model_worldclim_balanced_results_Kudzu_global[ , 1 ] )
+Bio_bal <- c( Static_model_bioclim_balanced_results_Kudzu_global[ , 1 ] )
+Bio_imbal <- c( Static_model_bioclim_imbalanced_results_Kudzu_global[ , 1 ] )
+M_global <- as.matrix( data.frame( DL , WC_bal , Bio_bal , Bio_imbal ) )
+
+par( mar = c( 5 , 4 , 4 , 5 ), xpd = TRUE )
+barplot( M_global  ,  beside = TRUE , col = col , ylim = c( 0 , 1 ) )
+legend( "right" , inset = c( - 0.1 , 0 ) , types , cex=0.6 , title = "Algorithm" ,
+       fill=c( "darkorange" , "forestgreen" , "goldenrod2" , "cornflowerblue" ) )
+title( "Model Predictions - Kudzu" , line = + 3 )
+
+# Insert values manually
+
+text(2.5 , M_global[ 2 , 1 ] + 0.05 , round( M_global[ 2 , 1 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(5.5 , M_global[ 1 , 2 ] + 0.05 , round( M_global[ 1 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(6.5 , M_global[ 2 , 2 ] + 0.05 , round( M_global[ 2 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(7.5 , M_global[ 3 , 2 ] + 0.05 , round( M_global[ 3 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(9.5 , M_global[ 1 , 3 ] + 0.05 , round( M_global[ 1 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(10.5 , M_global[ 2 , 3 ] + 0.05 , round( M_global[ 2 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(11.5 , M_global[ 3 , 3 ] + 0.05 , round( M_global[ 3 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(13.5 , M_global[ 1 , 4 ] + 0.05 , round( M_global[ 1 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(14.5 , M_global[ 2 , 4 ] + 0.05 , round( M_global[ 2 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(15.5 , M_global[ 3 , 4 ] + 0.05 , round( M_global[ 3 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+
+
+```
+
+###### Ladybird
+
+```{r echo=FALSE}
+
+DL <-  c( 0 , final_auc_Ladybird_global , 0 )
+WC_bal <- c( Static_model_worldclim_balanced_results_Ladybird_global[ , 1 ] )
+Bio_bal <- c( Static_model_bioclim_balanced_results_Ladybird_global[ , 1 ] )
+Bio_imbal <- c( Static_model_bioclim_imbalanced_results_Ladybird_global[ , 1 ] )
+M_global <- as.matrix( data.frame( DL , WC_bal , Bio_bal , Bio_imbal ) )
+
+par( mar = c( 5 , 4 , 4 , 5 ), xpd = TRUE )
+barplot( M_global  ,  beside = TRUE , col = col , ylim = c( 0 , 1 ) )
+legend( "right" , inset = c( - 0.1 , 0 ) , types , cex=0.6 , title = "Algorithm" ,
+       fill=c( "darkorange" , "forestgreen" , "goldenrod2" , "cornflowerblue" ) )
+title( "Model Predictions - Ladybird" , line = + 3 )
+
+# Insert values manually
+
+text(2.5 , M_global[ 2 , 1 ] + 0.05 , round( M_global[ 2 , 1 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(5.5 , M_global[ 1 , 2 ] + 0.05 , round( M_global[ 1 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(6.5 , M_global[ 2 , 2 ] + 0.05 , round( M_global[ 2 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(7.5 , M_global[ 3 , 2 ] + 0.05 , round( M_global[ 3 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(9.5 , M_global[ 1 , 3 ] + 0.05 , round( M_global[ 1 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(10.5 , M_global[ 2 , 3 ] + 0.05 , round( M_global[ 2 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(11.5 , M_global[ 3 , 3 ] + 0.05 , round( M_global[ 3 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(13.5 , M_global[ 1 , 4 ] + 0.05 , round( M_global[ 1 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(14.5 , M_global[ 2 , 4 ] + 0.05 , round( M_global[ 2 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(15.5 , M_global[ 3 , 4 ] + 0.05 , round( M_global[ 3 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+
+```
+
+###### Parakeet
+
+```{r echo=FALSE}
+
+DL <-  c( 0 , final_auc_Parakeet_global , 0 )
+WC_bal <- c( Static_model_worldclim_balanced_results_Parakeet_global[ , 1 ] )
+Bio_bal <- c( Static_model_bioclim_balanced_results_Parakeet_global[ , 1 ] )
+Bio_imbal <- c( Static_model_bioclim_imbalanced_results_Parakeet_global[ , 1 ] )
+M_global <- as.matrix( data.frame( DL , WC_bal , Bio_bal , Bio_imbal ) )
+
+par( mar = c( 5 , 4 , 4 , 5 ), xpd = TRUE )
+barplot( M_global  ,  beside = TRUE , col = col , ylim = c( 0 , 1 ) )
+legend( "right" , inset = c( - 0.1 , 0 ) , types , cex=0.6 , title = "Algorithm" ,
+       fill=c( "darkorange" , "forestgreen" , "goldenrod2" , "cornflowerblue" ) )
+title( "Model Predictions - Parakeet" , line = + 3 )
+
+# Insert values manually
+
+text(2.5 , M_global[ 2 , 1 ] + 0.05 , round( M_global[ 2 , 1 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(5.5 , M_global[ 1 , 2 ] + 0.05 , round( M_global[ 1 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(6.5 , M_global[ 2 , 2 ] + 0.05 , round( M_global[ 2 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(7.5 , M_global[ 3 , 2 ] + 0.05 , round( M_global[ 3 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(9.5 , M_global[ 1 , 3 ] + 0.05 , round( M_global[ 1 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(10.5 , M_global[ 2 , 3 ] + 0.05 , round( M_global[ 2 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(11.5 , M_global[ 3 , 3 ] + 0.05 , round( M_global[ 3 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(13.5 , M_global[ 1 , 4 ] + 0.05 , round( M_global[ 1 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(14.5 , M_global[ 2 , 4 ] + 0.05 , round( M_global[ 2 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(15.5 , M_global[ 3 , 4 ] + 0.05 , round( M_global[ 3 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+```
+
+##### {-}
+
+#### P/A {.tabset .tabset-pills}
+
+```{r include=FALSE}
+
+# Import training accuracies for comparison
+training_acc_monkeyflower <- read.csv("./Results_deep_learning/Accuracy_scores_donut.csv")
+
+n_epochs <- c(1:50)
+
+# Import data for each species 
+
+# AUCs 
+auc_monkeyflower_donut <- calc_epoch_aucs( 49 , path = "./Results_deep_learning/Monkeyflower/Monkeyflower_donut/" )
+
+final_auc_Monekyflower_donut <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Monkeyflower.csv" ,  col_names = FALSE ) )$X1 , 
+                       data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Monkeyflower.csv" ,  col_names = FALSE ) )$X1 )$auc
+
+# Max Points - Monkeyflower
+monkeyflower_max_train_global <- which( training_acc_monkeyflower$Monkeyflower == max( training_acc_monkeyflower$Monkeyflower ) , arr.ind = TRUE )
+monkeyflower_max_auc_global <- which( auc_monkeyflower_donut  == max( auc_monkeyflower_donut  ) , arr.ind = TRUE )
+
+
+Static_model_worldclim_balanced_results_Monkeyflower_donut <- readRDS("./Results_static_models/Static_model_worldclim_balanced_results_Monkeyflower_donut.rds")
+Static_model_bioclim_balanced_results_Monkeyflower_donut <- readRDS("./Results_static_models/Static_model_bioclim_balanced_results_Monkeyflower_donut.rds")
+Static_model_bioclim_imbalanced_results_Monkeyflower_donut <- readRDS("./Results_static_models/Static_model_bioclim_imbalanced_results_Monkeyflower_donut.rds")
+
+
+```
+
+
+##### DL Epoch Selection
+```{r echo=FALSE}
+monkeyflower_data_global <- data.frame( n_epochs , training_acc_monkeyflower$Monkeyflower  , auc_monkeyflower_donut )
+colnames( monkeyflower_data_global ) <- c( "epoch" , "train accuracy" , " auc" )
+monkeyflower_melt_global <- reshape2::melt( monkeyflower_data_global , id.var='epoch' ) 
+monkeyflower_plot_global <- ggline(  data = monkeyflower_melt_global ,
+                             
+                             x = "epoch" , 
+                             y = "value" , 
+                             color = "variable",
+                             palette = c( "Forestgreen" , "Blue" ) ,
+                             fill = "variable",   
+                            shape = 1 , 
+                           #ylim = c( 80 , 100 ) ,
+                      #size = 2 ,
+                      plot_type = "b" ) +
+  annotate( "point" , x = monkeyflower_max_train_global , y = max(monkeyflower_data_global$`train accuracy` ) , colour = "Forestgreen" , size = 4 ) +
+  annotate( "point" , x = monkeyflower_max_auc_global[1,1] , y = max( monkeyflower_data_global$` auc` ) , colour = "Blue" , size = 4 ) 
+monkeyflower_plot_global
+```
+
+
+##### DL Model Comparison
+```{r echo=FALSE}
+
+types <- c("DLNN" , "GBM" , "MaxEnt" , "RF")
+
+col = c(  "white", "darkorange", "white",
+          "forestgreen", "goldenrod2" , "cornflowerblue",
+          "forestgreen", "goldenrod2" , "cornflowerblue",
+          "forestgreen", "goldenrod2" , "cornflowerblue" )
+
+
+DL <-  c( 0 , final_auc_Monekyflower_donut , 0 )
+WC_bal <- c( Static_model_worldclim_balanced_results_Monkeyflower_donut[ , 1 ] )
+Bio_bal <- c( Static_model_bioclim_balanced_results_Monkeyflower_donut[ , 1 ] )
+Bio_imbal <- c( Static_model_bioclim_imbalanced_results_Monkeyflower_donut[ , 1 ] )
+M_global <- as.matrix( data.frame( DL , WC_bal , Bio_bal , Bio_imbal ) )
+
+par( mar = c( 5 , 4 , 4 , 5 ), xpd = TRUE )
+barplot( M_global  ,  beside = TRUE , col = col , ylim = c( 0 , 1 ) )
+legend( "right" , inset = c( - 0.1 , 0 ) , types , cex=0.6 , title = "Algorithm" ,
+       fill=c( "darkorange" , "forestgreen" , "goldenrod2" , "cornflowerblue" ) )
+title( "Model Predictions - Monkeyflower" , line = + 3 )
+
+# Insert values manually
+
+text(2.5 , M_global[ 2 , 1 ] + 0.05 , round( M_global[ 2 , 1 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(5.5 , M_global[ 1 , 2 ] + 0.05 , round( M_global[ 1 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(6.5 , M_global[ 2 , 2 ] + 0.05 , round( M_global[ 2 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(7.5 , M_global[ 3 , 2 ] + 0.05 , round( M_global[ 3 , 2 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(9.5 , M_global[ 1 , 3 ] + 0.05 , round( M_global[ 1 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(10.5 , M_global[ 2 , 3 ] + 0.05 , round( M_global[ 2 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(11.5 , M_global[ 3 , 3 ] + 0.05 , round( M_global[ 3 , 3 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+text(13.5 , M_global[ 1 , 4 ] + 0.05 , round( M_global[ 1 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(14.5 , M_global[ 2 , 4 ] + 0.05 , round( M_global[ 2 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+text(15.5 , M_global[ 3 , 4 ] + 0.05 , round( M_global[ 3 , 4 ]  , 3 ), srt = 90 , cex = 0.8 )
+
+```
+
+
+
+
+### {-}
+
+### Predictions {.tabset .tabset-pills}
+```{r echo=FALSE}
+
+##############################
+# DL Models
+##############################
+
+#./Results_all_predictiction_rasters/
+
+# Boar
+DL_Boar_1000km <- raster("./Results_all_predictiction_rasters/DL_Boar_1000km.tif")
+DL_Boar_global <- raster("./Results_all_predictiction_rasters/DL_Boar_global.tif")
+
+# Kudzu
+DL_Kudzu_1000km <- raster("./Results_all_predictiction_rasters/DL_Kudzu_1000km.tif")
+DL_Kudzu_global <- raster("./Results_all_predictiction_rasters/DL_Kudzu_global.tif")
+
+# Ladybird
+DL_Ladybird_1000km <- raster("./Results_all_predictiction_rasters/DL_Ladybird_1000km.tif")
+DL_Ladybird_global <- raster("./Results_all_predictiction_rasters/DL_Ladybird_global.tif")
+
+# Parakeet
+DL_Parakeet_1000km <- raster("./Results_all_predictiction_rasters/DL_Parakeet_1000km.tif")
+DL_Parakeet_global <- raster("./Results_all_predictiction_rasters/DL_Parakeet_global.tif")
+
+
+##############################
+# Static Models
+##############################
+
+
+# Boar -  bioclim balanced
+Static_model_bioclim_balanced_Boar_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Boar_gbm_1000km.tif")
+Static_model_bioclim_balanced_Boar_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Boar_maxent_1000km.tif")
+Static_model_bioclim_balanced_Boar_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Boar_rf_1000km.tif")
+
+Static_model_bioclim_balanced_Boar_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Boar_gbm_global.tif")
+Static_model_bioclim_balanced_Boar_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Boar_maxent_global.tif")
+Static_model_bioclim_balanced_Boar_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Boar_rf_global.tif")
+
+# Boar -  bioclim imbalanced
+Static_model_bioclim_imbalanced_Boar_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Boar_gbm_1000km.tif")
+Static_model_bioclim_imbalanced_Boar_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Boar_maxent_1000km.tif")
+Static_model_bioclim_imbalanced_Boar_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Boar_rf_1000km.tif")
+
+Static_model_bioclim_imbalanced_Boar_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Boar_gbm_global.tif")
+Static_model_bioclim_imbalanced_Boar_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Boar_maxent_global.tif")
+Static_model_bioclim_imbalanced_Boar_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Boar_rf_global.tif")
+
+# Boar -  worldclim balanced
+Static_model_worldclim_balanced_Boar_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Boar_gbm_1000km.tif")
+Static_model_worldclim_balanced_Boar_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Boar_maxent_1000km.tif")
+Static_model_worldclim_balanced_Boar_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Boar_rf_1000km.tif")
+
+Static_model_worldclim_balanced_Boar_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Boar_gbm_global.tif")
+Static_model_worldclim_balanced_Boar_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Boar_maxent_global.tif")
+Static_model_worldclim_balanced_Boar_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Boar_rf_global.tif")
+
+#____________________________________________________________________________________________________________________________________
+
+# Kudzu -  bioclim balanced
+Static_model_bioclim_balanced_Kudzu_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Kudzu_gbm_1000km.tif")
+Static_model_bioclim_balanced_Kudzu_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Kudzu_maxent_1000km.tif")
+Static_model_bioclim_balanced_Kudzu_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Kudzu_rf_1000km.tif")
+
+Static_model_bioclim_balanced_Kudzu_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Kudzu_gbm_global.tif")
+Static_model_bioclim_balanced_Kudzu_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Kudzu_maxent_global.tif")
+Static_model_bioclim_balanced_Kudzu_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Kudzu_rf_global.tif")
+
+# Kudzu -  bioclim imbalanced
+Static_model_bioclim_imbalanced_Kudzu_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Kudzu_gbm_1000km.tif")
+Static_model_bioclim_imbalanced_Kudzu_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Kudzu_maxent_1000km.tif")
+Static_model_bioclim_imbalanced_Kudzu_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Kudzu_rf_1000km.tif")
+
+Static_model_bioclim_imbalanced_Kudzu_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Kudzu_gbm_global.tif")
+Static_model_bioclim_imbalanced_Kudzu_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Kudzu_maxent_global.tif")
+Static_model_bioclim_imbalanced_Kudzu_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Kudzu_rf_global.tif")
+
+# Kudzu -  worldclim balanced
+Static_model_worldclim_balanced_Kudzu_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Kudzu_gbm_1000km.tif")
+Static_model_worldclim_balanced_Kudzu_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Kudzu_maxent_1000km.tif")
+Static_model_worldclim_balanced_Kudzu_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Kudzu_rf_1000km.tif")
+
+Static_model_worldclim_balanced_Kudzu_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Kudzu_gbm_global.tif")
+Static_model_worldclim_balanced_Kudzu_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Kudzu_maxent_global.tif")
+Static_model_worldclim_balanced_Kudzu_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Kudzu_rf_global.tif")
+
+#____________________________________________________________________________________________________________________________________
+
+# Ladybird -  bioclim balanced
+Static_model_bioclim_balanced_Ladybird_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Ladybird_gbm_1000km.tif")
+Static_model_bioclim_balanced_Ladybird_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Ladybird_maxent_1000km.tif")
+Static_model_bioclim_balanced_Ladybird_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Ladybird_rf_1000km.tif")
+
+Static_model_bioclim_balanced_Ladybird_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Ladybird_gbm_global.tif")
+Static_model_bioclim_balanced_Ladybird_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Ladybird_maxent_global.tif")
+Static_model_bioclim_balanced_Ladybird_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Ladybird_rf_global.tif")
+
+# Ladybird -  bioclim imbalanced
+Static_model_bioclim_imbalanced_Ladybird_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Ladybird_gbm_1000km.tif")
+Static_model_bioclim_imbalanced_Ladybird_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Ladybird_maxent_1000km.tif")
+Static_model_bioclim_imbalanced_Ladybird_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Ladybird_rf_1000km.tif")
+
+Static_model_bioclim_imbalanced_Ladybird_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Ladybird_gbm_global.tif")
+Static_model_bioclim_imbalanced_Ladybird_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Ladybird_maxent_global.tif")
+Static_model_bioclim_imbalanced_Ladybird_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Ladybird_rf_global.tif")
+
+# Ladybird -  worldclim balanced
+Static_model_worldclim_balanced_Ladybird_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Ladybird_gbm_1000km.tif")
+Static_model_worldclim_balanced_Ladybird_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Ladybird_maxent_1000km.tif")
+Static_model_worldclim_balanced_Ladybird_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Ladybird_rf_1000km.tif")
+
+Static_model_worldclim_balanced_Ladybird_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Ladybird_gbm_global.tif")
+Static_model_worldclim_balanced_Ladybird_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Ladybird_maxent_global.tif")
+Static_model_worldclim_balanced_Ladybird_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Ladybird_rf_global.tif")
+
+#____________________________________________________________________________________________________________________________________
+
+# Parakeet -  bioclim balanced
+Static_model_bioclim_balanced_Parakeet_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Parakeet_gbm_1000km.tif")
+Static_model_bioclim_balanced_Parakeet_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Parakeet_maxent_1000km.tif")
+Static_model_bioclim_balanced_Parakeet_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Parakeet_rf_1000km.tif")
+
+Static_model_bioclim_balanced_Parakeet_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Parakeet_gbm_global.tif")
+Static_model_bioclim_balanced_Parakeet_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Parakeet_maxent_global.tif")
+Static_model_bioclim_balanced_Parakeet_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Parakeet_rf_global.tif")
+
+# Parakeet -  bioclim imbalanced
+Static_model_bioclim_imbalanced_Parakeet_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Parakeet_gbm_1000km.tif")
+Static_model_bioclim_imbalanced_Parakeet_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Parakeet_maxent_1000km.tif")
+Static_model_bioclim_imbalanced_Parakeet_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Parakeet_rf_1000km.tif")
+
+Static_model_bioclim_imbalanced_Parakeet_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Parakeet_gbm_global.tif")
+Static_model_bioclim_imbalanced_Parakeet_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Parakeet_maxent_global.tif")
+Static_model_bioclim_imbalanced_Parakeet_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Parakeet_rf_global.tif")
+
+# Parakeet -  worldclim balanced
+Static_model_worldclim_balanced_Parakeet_gbm_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Parakeet_gbm_1000km.tif")
+Static_model_worldclim_balanced_Parakeet_maxent_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Parakeet_maxent_1000km.tif")
+Static_model_worldclim_balanced_Parakeet_rf_1000km <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Parakeet_rf_1000km.tif")
+
+Static_model_worldclim_balanced_Parakeet_gbm_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Parakeet_gbm_global.tif")
+Static_model_worldclim_balanced_Parakeet_maxent_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Parakeet_maxent_global.tif")
+Static_model_worldclim_balanced_Parakeet_rf_global <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Parakeet_rf_global.tif")
+
+
+```
+
+#### 1000km {.tabset .tabset-pills}
+
+##### Boar {.tabset .tabset-pills}
+
+###### DL
+```{r echo=FALSE}
+
+plot( normalize_raster( DL_Boar_1000km ) , main = "Boar - Deep Learning " ) 
+
+```
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_balanced_Boar_gbm_1000km )  , main = "Boar - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Boar_maxent_1000km )  , main = "Boar - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Boar_rf_1000km )  , main = "Boar - RF " ) 
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_imbalanced_Boar_gbm_1000km )  , main = "Boar - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Boar_maxent_1000km )  , main = "Boar - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Boar_rf_1000km  ) , main = "Boar - RF " ) 
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_worldclim_balanced_Boar_gbm_1000km )  , main = "Boar - GBM " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Boar_maxent_1000km )  , main = "Boar - MaxEnt " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Boar_rf_1000km )  , main = "Boar - RF " ) 
+
+```
+
+##### Kudzu {.tabset .tabset-pills}
+
+###### DL
+```{r echo=FALSE}
+
+plot( normalize_raster( DL_Kudzu_1000km )  , main = "Kudzu - Deep Learning " ) 
+
+```
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_balanced_Kudzu_gbm_1000km )  , main = "Kudzu - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Kudzu_maxent_1000km )  , main = "Kudzu - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Kudzu_rf_1000km )  , main = "Kudzu - RF " ) 
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_imbalanced_Kudzu_gbm_1000km )  , main = "Kudzu - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Kudzu_maxent_1000km )  , main = "Kudzu - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Kudzu_rf_1000km )  , main = "Kudzu - RF " ) 
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_worldclim_balanced_Kudzu_gbm_1000km )  , main = "Kudzu - GBM " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Kudzu_maxent_1000km )  , main = "Kudzu - MaxEnt " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Kudzu_rf_1000km )  , main = "Kudzu - RF " ) 
+
+```
+
+
+##### Ladybird {.tabset .tabset-pills}
+
+###### DL
+```{r echo=FALSE}
+
+plot( normalize_raster( DL_Ladybird_1000km )  , main = "Ladybird - Deep Learning " ) 
+
+```
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_balanced_Ladybird_gbm_1000km )  , main = "Ladybird - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Ladybird_maxent_1000km )  , main = "Ladybird - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Ladybird_rf_1000km )  , main = "Ladybird - RF " ) 
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_imbalanced_Ladybird_gbm_1000km )  , main = "Ladybird - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Ladybird_maxent_1000km )  , main = "Ladybird - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Ladybird_rf_1000km )  , main = "Ladybird - RF " ) 
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_worldclim_balanced_Ladybird_gbm_1000km )  , main = "Ladybird - GBM " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Ladybird_maxent_1000km )  , main = "Ladybird - MaxEnt " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Ladybird_rf_1000km )  , main = "Ladybird - RF " ) 
+
+```
+
+
+##### Parakeet {.tabset .tabset-pills}
+
+###### DL
+```{r echo=FALSE}
+
+plot( normalize_raster( DL_Parakeet_1000km )  , main = "Parakeet - Deep Learning " ) 
+
+```
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_balanced_Parakeet_gbm_1000km )  , main = "Parakeet - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Parakeet_maxent_1000km )  , main = "Parakeet - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Parakeet_rf_1000km )  , main = "Parakeet - RF " ) 
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_imbalanced_Parakeet_gbm_1000km )  , main = "Parakeet - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Parakeet_maxent_1000km )  , main = "Parakeet - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Parakeet_rf_1000km )  , main = "Parakeet - RF " ) 
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_worldclim_balanced_Parakeet_gbm_1000km )  , main = "Parakeet - GBM " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Parakeet_maxent_1000km )  , main = "Parakeet - MaxEnt " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Parakeet_rf_1000km  ) , main = "Parakeet - RF " ) 
+
+```
+
+#### {-}
+
+#### Global {.tabset .tabset-pills}
+
+##### Boar {.tabset .tabset-pills}
+
+###### DL
+```{r echo=FALSE}
+
+plot( normalize_raster( DL_Boar_global )  , main = "Boar - Deep Learning " ) 
+
+```
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_balanced_Boar_gbm_global )  , main = "Boar - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Boar_maxent_global )  , main = "Boar - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Boar_rf_global )  , main = "Boar - RF " ) 
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_imbalanced_Boar_gbm_global )  , main = "Boar - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Boar_maxent_global )  , main = "Boar - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Boar_rf_global )  , main = "Boar - RF " ) 
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_worldclim_balanced_Boar_gbm_global )  , main = "Boar - GBM " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Boar_maxent_global )  , main = "Boar - MaxEnt " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Boar_rf_global )  , main = "Boar - RF " ) 
+
+```
+
+##### Kudzu {.tabset .tabset-pills}
+
+###### DL
+```{r echo=FALSE}
+
+plot( normalize_raster( DL_Kudzu_global )  , main = "Kudzu - Deep Learning " ) 
+
+```
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_balanced_Kudzu_gbm_global )  , main = "Kudzu - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Kudzu_maxent_global )  , main = "Kudzu - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Kudzu_rf_global )  , main = "Kudzu - RF " ) 
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_imbalanced_Kudzu_gbm_global )  , main = "Kudzu - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Kudzu_maxent_global  ) , main = "Kudzu - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Kudzu_rf_global )  , main = "Kudzu - RF " ) 
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_worldclim_balanced_Kudzu_gbm_global )  , main = "Kudzu - GBM " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Kudzu_maxent_global )  , main = "Kudzu - MaxEnt " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Kudzu_rf_global )  , main = "Kudzu - RF " ) 
+
+```
+
+
+##### Ladybird {.tabset .tabset-pills}
+
+###### DL
+```{r echo=FALSE}
+
+plot( normalize_raster( DL_Ladybird_global )  , main = "Ladybird - Deep Learning " ) 
+
+```
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_balanced_Ladybird_gbm_global )  , main = "Ladybird - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Ladybird_maxent_global ) , main = "Ladybird - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Ladybird_rf_global )  , main = "Ladybird - RF " ) 
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_imbalanced_Ladybird_gbm_global )  , main = "Ladybird - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Ladybird_maxent_global )  , main = "Ladybird - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Ladybird_rf_global )  , main = "Ladybird - RF " ) 
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_worldclim_balanced_Ladybird_gbm_global )  , main = "Ladybird - GBM " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Ladybird_maxent_global )  , main = "Ladybird - MaxEnt " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Ladybird_rf_global )  , main = "Ladybird - RF " ) 
+
+```
+
+
+##### Parakeet {.tabset .tabset-pills}
+
+###### DL
+```{r echo=FALSE}
+
+plot( normalize_raster( DL_Parakeet_global )  , main = "Parakeet - Deep Learning " ) 
+
+```
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_balanced_Parakeet_gbm_global )  , main = "Parakeet - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Parakeet_maxent_global )  , main = "Parakeet - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Parakeet_rf_global ) , main = "Parakeet - RF " ) 
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_imbalanced_Parakeet_gbm_global )  , main = "Parakeet - GBM " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Parakeet_maxent_global )  , main = "Parakeet - MaxEnt " ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Parakeet_rf_global )  , main = "Parakeet - RF " ) 
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_worldclim_balanced_Parakeet_gbm_global )  , main = "Parakeet - GBM " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Parakeet_maxent_global )  , main = "Parakeet - MaxEnt " ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Parakeet_rf_global )  , main = "Parakeet - RF " ) 
+
+```
+
+#### {-}
+
+#### P/A {.tabset .tabset-pills}
+
+
+```{r echo=FALSE}
+
+# Monkeyflower
+
+##############################
+# DL Models
+##############################
+
+
+DL_Monkeyflower_donut <- raster("./Results_all_predictiction_rasters/DL_Monkeyflower.tif") 
+
+
+
+##############################
+# Static Models
+##############################
+
+
+Static_model_bioclim_balanced_Monkeyflower_gbm_donut <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Monkeyflower_gbm_donut.tif")
+Static_model_bioclim_balanced_Monkeyflower_maxent_donut <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Monkeyflower_maxent_donut.tif")
+Static_model_bioclim_balanced_Monkeyflower_rf_donut <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_balanced_Monkeyflower_rf_donut.tif")
+
+
+Static_model_bioclim_imbalanced_Monkeyflower_gbm_donut <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Monkeyflower_gbm_donut.tif")
+Static_model_bioclim_imbalanced_Monkeyflower_maxent_donut <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Monkeyflower_maxent_donut.tif")
+Static_model_bioclim_imbalanced_Monkeyflower_rf_donut <- raster("./Results_all_predictiction_rasters/Static_model_bioclim_imbalanced_Monkeyflower_rf_donut.tif")
+
+
+
+Static_model_worldclim_balanced_Monkeyflower_gbm_donut <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Monkeyflower_gbm_donut.tif")
+Static_model_worldclim_balanced_Monkeyflower_maxent_donut <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Monkeyflower_maxent_donut.tif")
+Static_model_worldclim_balanced_Monkeyflower_rf_donut <- raster("./Results_all_predictiction_rasters/Static_model_worldclim_balanced_Monkeyflower_rf_donut.tif")
+
+#____________________________________________________________________________________________________________________________________
+
+
+DL_Monkeyflower_donut<- crop( DL_Monkeyflower_donut , Static_model_bioclim_balanced_Monkeyflower_gbm_donut )
+
+
+```
+
+
+
+##### DL
+```{r echo=FALSE}
+
+plot( normalize_raster( DL_Monkeyflower_donut )  , main = "Monkeyflower - Deep Learning " , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 )  ) 
+
+```
+
+##### Bio_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_balanced_Monkeyflower_gbm_donut )  , main = "Monkeyflower - GBM " , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Monkeyflower_maxent_donut )  , main = "Monkeyflower - MaxEnt " , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ) 
+plot( normalize_raster( Static_model_bioclim_balanced_Monkeyflower_rf_donut ) , main = "Monkeyflower - RF " , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ) 
+
+```
+
+##### Bio_imbal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_bioclim_imbalanced_Monkeyflower_gbm_donut )  , main = "Monkeyflower - GBM " , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 )  ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Monkeyflower_maxent_donut )  , main = "Monkeyflower - MaxEnt " , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 )  ) 
+plot( normalize_raster( Static_model_bioclim_imbalanced_Monkeyflower_rf_donut )  , main = "Monkeyflower - RF " , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 )  ) 
+
+```
+
+##### WC_bal
+```{r echo=FALSE}
+
+plot( normalize_raster( Static_model_worldclim_balanced_Monkeyflower_gbm_donut )  , main = "Monkeyflower - GBM " , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 )  ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Monkeyflower_maxent_donut )  , main = "Monkeyflower - MaxEnt " , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ) 
+plot( normalize_raster( Static_model_worldclim_balanced_Monkeyflower_rf_donut )  , main = "Monkeyflower - RF " , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ) 
+
+```
+
+#### {-}
+
+### {-}
+
+
+### Prediction comparisons: deep-learning v. static machine learning {.tabset .tabset-pills}
+```{r include=FALSE}
+
+#library(pROC)
+
+# 1000km  ________________________________________________________________________________________________________________________________________________________
+
+# Boar
+
+final_Boar_1000km <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Boar_1000km.csv" ,  col_names = FALSE ) )$X1 , 
+                       data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Boar_1000km.csv",  col_names = FALSE ) )$X1 ) 
+# Calculate sens_spec
+# determine the best threshold
+Boar_dl_th_1000km <- which(final_Boar_1000km$sensitivities + final_Boar_1000km$specificities == max(final_Boar_1000km$sensitivities + final_Boar_1000km$specificities), arr.ind = TRUE)
+final_Boar_1000km$thresholds[[Boar_dl_th_1000km]]
+
+# Kudzu
+
+final_Kudzu_1000km <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Kudzu_1000km.csv" ,  col_names = FALSE ) )$X1 , 
+                       data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Kudzu_1000km.csv",  col_names = FALSE ) )$X1 ) 
+# Calculate sens_spec
+final_Kudzu_1000km$sensitivities + final_Kudzu_1000km$specificities
+max( final_Kudzu_1000km$sensitivities + final_Kudzu_1000km$specificities )
+# determine the best threshold
+Kudzu_dl_th_1000km <- which(final_Kudzu_1000km$sensitivities + final_Kudzu_1000km$specificities == max(final_Kudzu_1000km$sensitivities + final_Kudzu_1000km$specificities), arr.ind = TRUE)
+final_Kudzu_1000km$thresholds[[Kudzu_dl_th_1000km]]
+
+# Ladybird
+
+final_Ladybird_1000km <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Ladybird_1000km.csv" ,  col_names = FALSE ) )$X1 , 
+                       data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Ladybird_1000km.csv",  col_names = FALSE ) )$X1 ) 
+# Calculate sens_spec
+# determine the best threshold
+Ladybird_dl_th_1000km <- which(final_Ladybird_1000km$sensitivities + final_Ladybird_1000km$specificities == max(final_Ladybird_1000km$sensitivities + final_Ladybird_1000km$specificities), arr.ind = TRUE)
+final_Ladybird_1000km$thresholds[[Ladybird_dl_th_1000km]]
+
+# Parakeet
+
+final_Parakeet_1000km <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Parakeet_1000km.csv" ,  col_names = FALSE ) )$X1 , 
+                       data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Parakeet_1000km.csv",  col_names = FALSE ) )$X1 ) 
+# Calculate sens_spec
+# determine the best threshold
+Parakeet_dl_th_1000km <- which(final_Parakeet_1000km$sensitivities + final_Parakeet_1000km$specificities == max(final_Parakeet_1000km$sensitivities + final_Parakeet_1000km$specificities), arr.ind = TRUE)
+final_Parakeet_1000km$thresholds[[Parakeet_dl_th_1000km]]
+
+
+
+# global  ________________________________________________________________________________________________________________________________________________________
+
+# Boar
+
+final_Boar_global <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Boar_global.csv" ,  col_names = FALSE ) )$X1 , 
+                                      data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Boar_global.csv",  col_names = FALSE ) )$X1 ) 
+# Calculate sens_spec
+# determine the best threshold
+Boar_dl_th_global <- which(final_Boar_global$sensitivities + final_Boar_global$specificities == max(final_Boar_global$sensitivities + final_Boar_global$specificities), arr.ind = TRUE)
+final_Boar_global$thresholds[[Boar_dl_th_global]]
+
+# Kudzu
+
+final_Kudzu_global <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Kudzu_global.csv" ,  col_names = FALSE ) )$X1 , 
+                                       data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Kudzu_global.csv",  col_names = FALSE ) )$X1 ) 
+# Calculate sens_spec
+# determine the best threshold
+Kudzu_dl_th_global <- which(final_Kudzu_global$sensitivities + final_Kudzu_global$specificities == max(final_Kudzu_global$sensitivities + final_Kudzu_global$specificities), arr.ind = TRUE)
+final_Kudzu_global$thresholds[[Kudzu_dl_th_global]]
+
+# Ladybird
+
+final_Ladybird_global <- roc( data.frame(read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Ladybird_global.csv" ,  col_names = FALSE ) )$X1 , 
+                                          data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Ladybird_global.csv",  col_names = FALSE ) )$X1 ) 
+# Calculate sens_spec
+# determine the best threshold
+Ladybird_dl_th_global <- which(final_Ladybird_global$sensitivities + final_Ladybird_global$specificities == max(final_Ladybird_global$sensitivities + final_Ladybird_global$specificities), arr.ind = TRUE)
+final_Ladybird_global$thresholds[[Ladybird_dl_th_global]]
+
+# Parakeet
+
+final_Parakeet_global <- roc( data.frame(read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Parakeet_global.csv" ,  col_names = FALSE ) )$X1 , 
+                                          data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Parakeet_global.csv",  col_names = FALSE ) )$X1 ) 
+# Calculate sens_spec
+# determine the best threshold
+Parakeet_dl_th_global <- which(final_Parakeet_global$sensitivities + final_Parakeet_global$specificities == max(final_Parakeet_global$sensitivities + final_Parakeet_global$specificities), arr.ind = TRUE)
+final_Parakeet_global$thresholds[[Parakeet_dl_th_global]]
+
+#___________________________________________________________
+
+
+DL_Boar_1000km_th <-  ( ( DL_Boar_1000km > final_Boar_1000km$thresholds[[Boar_dl_th_1000km]] ) * 2 )
+DL_Kudzu_1000km_th <-  ( ( DL_Kudzu_1000km > final_Kudzu_1000km$thresholds[[Kudzu_dl_th_1000km]] ) * 2 )
+DL_Ladybird_1000km_th <-  ( ( DL_Ladybird_1000km > final_Ladybird_1000km$thresholds[[Ladybird_dl_th_1000km]] ) * 2 )
+DL_Parakeet_1000km_th <-  ( ( DL_Parakeet_1000km > final_Parakeet_1000km$thresholds[[Parakeet_dl_th_1000km]] ) * 2 )
+
+DL_Boar_global_th <-  ( ( DL_Boar_global > final_Boar_global$thresholds[[Boar_dl_th_global]] ) * 2 )
+DL_Kudzu_global_th <-  ( ( DL_Kudzu_global > final_Kudzu_global$thresholds[[Kudzu_dl_th_global]] ) * 2 )
+DL_Ladybird_global_th <-  ( ( DL_Ladybird_global > final_Ladybird_global$thresholds[[Ladybird_dl_th_global]] ) * 2 )
+DL_Parakeet_global_th <-  ( ( DL_Parakeet_global > final_Parakeet_global$thresholds[[Parakeet_dl_th_global]] ) * 2 )
+
+# Boar -  bioclim balanced
+Static_model_bioclim_balanced_Boar_gbm_1000km_th <- ( crop( Static_model_bioclim_balanced_Boar_gbm_1000km , DL_Boar_1000km_th )  > Static_model_bioclim_balanced_results_Boar_1000km[1,2] )
+Static_model_bioclim_balanced_Boar_maxent_1000km_th <- ( crop( Static_model_bioclim_balanced_Boar_maxent_1000km , DL_Boar_1000km_th )  > Static_model_bioclim_balanced_results_Boar_1000km[2,2] )
+Static_model_bioclim_balanced_Boar_rf_1000km_th <- ( crop( Static_model_bioclim_balanced_Boar_rf_1000km , DL_Boar_1000km_th )  > Static_model_bioclim_balanced_results_Boar_1000km[3,2] )
+
+Static_model_bioclim_balanced_Boar_gbm_global_th <- ( crop( Static_model_bioclim_balanced_Boar_gbm_global , DL_Boar_global_th )  > Static_model_bioclim_balanced_results_Boar_global[1,2] )
+Static_model_bioclim_balanced_Boar_maxent_global_th <- ( crop( Static_model_bioclim_balanced_Boar_maxent_global , DL_Boar_global_th )  > Static_model_bioclim_balanced_results_Boar_global[2,2] )
+Static_model_bioclim_balanced_Boar_rf_global_th <- ( crop( Static_model_bioclim_balanced_Boar_rf_global , DL_Boar_global_th )  > Static_model_bioclim_balanced_results_Boar_global[3,2] )
+
+# Boar -  bioclim imbalanced
+Static_model_bioclim_imbalanced_Boar_gbm_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Boar_gbm_1000km , DL_Boar_1000km_th )  > Static_model_bioclim_imbalanced_results_Boar_1000km[1,2] )
+Static_model_bioclim_imbalanced_Boar_maxent_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Boar_maxent_1000km , DL_Boar_1000km_th )  > Static_model_bioclim_imbalanced_results_Boar_1000km[2,2] )
+Static_model_bioclim_imbalanced_Boar_rf_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Boar_rf_1000km , DL_Boar_1000km_th )  > Static_model_bioclim_imbalanced_results_Boar_1000km[3,2] )
+
+Static_model_bioclim_imbalanced_Boar_gbm_global_th <- ( crop( Static_model_bioclim_imbalanced_Boar_gbm_global , DL_Boar_global_th )  > Static_model_bioclim_imbalanced_results_Boar_global[1,2] )
+Static_model_bioclim_imbalanced_Boar_maxent_global_th <- ( crop( Static_model_bioclim_imbalanced_Boar_maxent_global , DL_Boar_global_th )  > Static_model_bioclim_imbalanced_results_Boar_global[2,2] )
+Static_model_bioclim_imbalanced_Boar_rf_global_th <- ( crop( Static_model_bioclim_imbalanced_Boar_rf_global , DL_Boar_global_th )  > Static_model_bioclim_imbalanced_results_Boar_global[3,2] )
+
+# Boar -  worldclim balanced
+Static_model_worldclim_balanced_Boar_gbm_1000km_th <- ( crop( Static_model_worldclim_balanced_Boar_gbm_1000km , DL_Boar_1000km_th )  > Static_model_worldclim_balanced_results_Boar_1000km[1,2] )
+Static_model_worldclim_balanced_Boar_maxent_1000km_th <- ( crop( Static_model_worldclim_balanced_Boar_maxent_1000km , DL_Boar_1000km_th )  > Static_model_worldclim_balanced_results_Boar_1000km[2,2] )
+Static_model_worldclim_balanced_Boar_rf_1000km_th <- ( crop( Static_model_worldclim_balanced_Boar_rf_1000km , DL_Boar_1000km_th )  > Static_model_worldclim_balanced_results_Boar_1000km[3,2] )
+
+Static_model_worldclim_balanced_Boar_gbm_global_th <- ( crop( Static_model_worldclim_balanced_Boar_gbm_global , DL_Boar_global_th )  > Static_model_worldclim_balanced_results_Boar_global[1,2] )
+Static_model_worldclim_balanced_Boar_maxent_global_th <- ( crop( Static_model_worldclim_balanced_Boar_maxent_global , DL_Boar_global_th )  > Static_model_worldclim_balanced_results_Boar_global[2,2] )
+Static_model_worldclim_balanced_Boar_rf_global_th <- ( crop( Static_model_worldclim_balanced_Boar_rf_global , DL_Boar_global_th )  > Static_model_worldclim_balanced_results_Boar_global[3,2] )
+
+#_________________________________________________________________________
+
+# Kudzu -  bioclim balanced
+Static_model_bioclim_balanced_Kudzu_gbm_1000km_th <- ( crop( Static_model_bioclim_balanced_Kudzu_gbm_1000km , DL_Kudzu_1000km_th )  > Static_model_bioclim_balanced_results_Kudzu_1000km[1,2] )
+Static_model_bioclim_balanced_Kudzu_maxent_1000km_th <- ( crop( Static_model_bioclim_balanced_Kudzu_maxent_1000km , DL_Kudzu_1000km_th )  > Static_model_bioclim_balanced_results_Kudzu_1000km[2,2] )
+Static_model_bioclim_balanced_Kudzu_rf_1000km_th <- ( crop( Static_model_bioclim_balanced_Kudzu_rf_1000km , DL_Kudzu_1000km_th )  > Static_model_bioclim_balanced_results_Kudzu_1000km[3,2] )
+
+Static_model_bioclim_balanced_Kudzu_gbm_global_th <- ( crop( Static_model_bioclim_balanced_Kudzu_gbm_global , DL_Kudzu_global_th )  > Static_model_bioclim_balanced_results_Kudzu_global[1,2] )
+Static_model_bioclim_balanced_Kudzu_maxent_global_th <- ( crop( Static_model_bioclim_balanced_Kudzu_maxent_global , DL_Kudzu_global_th )  > Static_model_bioclim_balanced_results_Kudzu_global[2,2] )
+Static_model_bioclim_balanced_Kudzu_rf_global_th <- ( crop( Static_model_bioclim_balanced_Kudzu_rf_global , DL_Kudzu_global_th )  > Static_model_bioclim_balanced_results_Kudzu_global[3,2] )
+
+# Kudzu -  bioclim imbalanced
+Static_model_bioclim_imbalanced_Kudzu_gbm_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Kudzu_gbm_1000km , DL_Kudzu_1000km_th )  > Static_model_bioclim_imbalanced_results_Kudzu_1000km[1,2] )
+Static_model_bioclim_imbalanced_Kudzu_maxent_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Kudzu_maxent_1000km , DL_Kudzu_1000km_th )  > Static_model_bioclim_imbalanced_results_Kudzu_1000km[2,2] )
+Static_model_bioclim_imbalanced_Kudzu_rf_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Kudzu_rf_1000km , DL_Kudzu_1000km_th )  > Static_model_bioclim_imbalanced_results_Kudzu_1000km[3,2] )
+
+Static_model_bioclim_imbalanced_Kudzu_gbm_global_th <- ( crop( Static_model_bioclim_imbalanced_Kudzu_gbm_global , DL_Kudzu_global_th )  > Static_model_bioclim_imbalanced_results_Kudzu_global[1,2] )
+Static_model_bioclim_imbalanced_Kudzu_maxent_global_th <- ( crop( Static_model_bioclim_imbalanced_Kudzu_maxent_global , DL_Kudzu_global_th )  > Static_model_bioclim_imbalanced_results_Kudzu_global[2,2] )
+Static_model_bioclim_imbalanced_Kudzu_rf_global_th <- ( crop( Static_model_bioclim_imbalanced_Kudzu_rf_global , DL_Kudzu_global_th )  > Static_model_bioclim_imbalanced_results_Kudzu_global[3,2] )
+
+# Kudzu -  worldclim balanced
+Static_model_worldclim_balanced_Kudzu_gbm_1000km_th <- ( crop( Static_model_worldclim_balanced_Kudzu_gbm_1000km , DL_Kudzu_1000km_th )  > Static_model_worldclim_balanced_results_Kudzu_1000km[1,2] )
+Static_model_worldclim_balanced_Kudzu_maxent_1000km_th <- ( crop( Static_model_worldclim_balanced_Kudzu_maxent_1000km , DL_Kudzu_1000km_th )  > Static_model_worldclim_balanced_results_Kudzu_1000km[2,2] )
+Static_model_worldclim_balanced_Kudzu_rf_1000km_th <- ( crop( Static_model_worldclim_balanced_Kudzu_rf_1000km , DL_Kudzu_1000km_th )  > Static_model_worldclim_balanced_results_Kudzu_1000km[3,2] )
+
+Static_model_worldclim_balanced_Kudzu_gbm_global_th <- ( crop( Static_model_worldclim_balanced_Kudzu_gbm_global , DL_Kudzu_global_th )  > Static_model_worldclim_balanced_results_Kudzu_global[1,2] )
+Static_model_worldclim_balanced_Kudzu_maxent_global_th <- ( crop( Static_model_worldclim_balanced_Kudzu_maxent_global , DL_Kudzu_global_th )  > Static_model_worldclim_balanced_results_Kudzu_global[2,2] )
+Static_model_worldclim_balanced_Kudzu_rf_global_th <- ( crop( Static_model_worldclim_balanced_Kudzu_rf_global , DL_Kudzu_global_th )  > Static_model_worldclim_balanced_results_Kudzu_global[3,2] )
+
+#_________________________________________________________________________
+
+# Ladybird -  bioclim balanced
+Static_model_bioclim_balanced_Ladybird_gbm_1000km_th <- ( crop( Static_model_bioclim_balanced_Ladybird_gbm_1000km , DL_Ladybird_1000km_th )  > Static_model_bioclim_balanced_results_Ladybird_1000km[1,2] )
+Static_model_bioclim_balanced_Ladybird_maxent_1000km_th <- ( crop( Static_model_bioclim_balanced_Ladybird_maxent_1000km , DL_Ladybird_1000km_th )  > Static_model_bioclim_balanced_results_Ladybird_1000km[2,2] )
+Static_model_bioclim_balanced_Ladybird_rf_1000km_th <- ( crop( Static_model_bioclim_balanced_Ladybird_rf_1000km , DL_Ladybird_1000km_th )  > Static_model_bioclim_balanced_results_Ladybird_1000km[3,2] )
+
+Static_model_bioclim_balanced_Ladybird_gbm_global_th <- ( crop( Static_model_bioclim_balanced_Ladybird_gbm_global , DL_Ladybird_global_th )  > Static_model_bioclim_balanced_results_Ladybird_global[1,2] )
+Static_model_bioclim_balanced_Ladybird_maxent_global_th <- ( crop( Static_model_bioclim_balanced_Ladybird_maxent_global , DL_Ladybird_global_th )  > Static_model_bioclim_balanced_results_Ladybird_global[2,2] )
+Static_model_bioclim_balanced_Ladybird_rf_global_th <- ( crop( Static_model_bioclim_balanced_Ladybird_rf_global , DL_Ladybird_global_th )  > Static_model_bioclim_balanced_results_Ladybird_global[3,2] )
+
+# Ladybird -  bioclim imbalanced
+Static_model_bioclim_imbalanced_Ladybird_gbm_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Ladybird_gbm_1000km , DL_Ladybird_1000km_th )  > Static_model_bioclim_imbalanced_results_Ladybird_1000km[1,2] )
+Static_model_bioclim_imbalanced_Ladybird_maxent_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Ladybird_maxent_1000km , DL_Ladybird_1000km_th )  > Static_model_bioclim_imbalanced_results_Ladybird_1000km[2,2] )
+Static_model_bioclim_imbalanced_Ladybird_rf_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Ladybird_rf_1000km , DL_Ladybird_1000km_th )  > Static_model_bioclim_imbalanced_results_Ladybird_1000km[3,2] )
+
+Static_model_bioclim_imbalanced_Ladybird_gbm_global_th <- ( crop( Static_model_bioclim_imbalanced_Ladybird_gbm_global , DL_Ladybird_global_th )  > Static_model_bioclim_imbalanced_results_Ladybird_global[1,2] )
+Static_model_bioclim_imbalanced_Ladybird_maxent_global_th <- ( crop( Static_model_bioclim_imbalanced_Ladybird_maxent_global , DL_Ladybird_global_th )  > Static_model_bioclim_imbalanced_results_Ladybird_global[2,2] )
+Static_model_bioclim_imbalanced_Ladybird_rf_global_th <- ( crop( Static_model_bioclim_imbalanced_Ladybird_rf_global , DL_Ladybird_global_th )  > Static_model_bioclim_imbalanced_results_Ladybird_global[3,2] )
+
+# Ladybird -  worldclim balanced
+Static_model_worldclim_balanced_Ladybird_gbm_1000km_th <- ( crop( Static_model_worldclim_balanced_Ladybird_gbm_1000km , DL_Ladybird_1000km_th )  > Static_model_worldclim_balanced_results_Ladybird_1000km[1,2] )
+Static_model_worldclim_balanced_Ladybird_maxent_1000km_th <- ( crop( Static_model_worldclim_balanced_Ladybird_maxent_1000km , DL_Ladybird_1000km_th )  > Static_model_worldclim_balanced_results_Ladybird_1000km[2,2] )
+Static_model_worldclim_balanced_Ladybird_rf_1000km_th <- ( crop( Static_model_worldclim_balanced_Ladybird_rf_1000km , DL_Ladybird_1000km_th )  > Static_model_worldclim_balanced_results_Ladybird_1000km[3,2] )
+
+Static_model_worldclim_balanced_Ladybird_gbm_global_th <- ( crop( Static_model_worldclim_balanced_Ladybird_gbm_global , DL_Ladybird_global_th )  > Static_model_worldclim_balanced_results_Ladybird_global[1,2] )
+Static_model_worldclim_balanced_Ladybird_maxent_global_th <- ( crop( Static_model_worldclim_balanced_Ladybird_maxent_global , DL_Ladybird_global_th )  > Static_model_worldclim_balanced_results_Ladybird_global[2,2] )
+Static_model_worldclim_balanced_Ladybird_rf_global_th <- ( crop( Static_model_worldclim_balanced_Ladybird_rf_global , DL_Ladybird_global_th )  > Static_model_worldclim_balanced_results_Ladybird_global[3,2] )
+
+#_________________________________________________________________________
+
+# Parakeet -  bioclim balanced
+Static_model_bioclim_balanced_Parakeet_gbm_1000km_th <- ( crop( Static_model_bioclim_balanced_Parakeet_gbm_1000km , DL_Parakeet_1000km_th )  > Static_model_bioclim_balanced_results_Parakeet_1000km[1,2] )
+Static_model_bioclim_balanced_Parakeet_maxent_1000km_th <- ( crop( Static_model_bioclim_balanced_Parakeet_maxent_1000km , DL_Parakeet_1000km_th )  > Static_model_bioclim_balanced_results_Parakeet_1000km[2,2] )
+Static_model_bioclim_balanced_Parakeet_rf_1000km_th <- ( crop( Static_model_bioclim_balanced_Parakeet_rf_1000km , DL_Parakeet_1000km_th )  > Static_model_bioclim_balanced_results_Parakeet_1000km[3,2] )
+
+Static_model_bioclim_balanced_Parakeet_gbm_global_th <- ( crop( Static_model_bioclim_balanced_Parakeet_gbm_global , DL_Parakeet_global_th )  > Static_model_bioclim_balanced_results_Parakeet_global[1,2] )
+Static_model_bioclim_balanced_Parakeet_maxent_global_th <- ( crop( Static_model_bioclim_balanced_Parakeet_maxent_global , DL_Parakeet_global_th )  > Static_model_bioclim_balanced_results_Parakeet_global[2,2] )
+Static_model_bioclim_balanced_Parakeet_rf_global_th <- ( crop( Static_model_bioclim_balanced_Parakeet_rf_global , DL_Parakeet_global_th )  > Static_model_bioclim_balanced_results_Parakeet_global[3,2] )
+
+# Parakeet -  bioclim imbalanced
+Static_model_bioclim_imbalanced_Parakeet_gbm_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Parakeet_gbm_1000km , DL_Parakeet_1000km_th )  > Static_model_bioclim_imbalanced_results_Parakeet_1000km[1,2] )
+Static_model_bioclim_imbalanced_Parakeet_maxent_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Parakeet_maxent_1000km , DL_Parakeet_1000km_th )  > Static_model_bioclim_imbalanced_results_Parakeet_1000km[2,2] )
+Static_model_bioclim_imbalanced_Parakeet_rf_1000km_th <- ( crop( Static_model_bioclim_imbalanced_Parakeet_rf_1000km , DL_Parakeet_1000km_th )  > Static_model_bioclim_imbalanced_results_Parakeet_1000km[3,2] )
+
+Static_model_bioclim_imbalanced_Parakeet_gbm_global_th <- ( crop( Static_model_bioclim_imbalanced_Parakeet_gbm_global , DL_Parakeet_global_th )  > Static_model_bioclim_imbalanced_results_Parakeet_global[1,2] )
+Static_model_bioclim_imbalanced_Parakeet_maxent_global_th <- ( crop( Static_model_bioclim_imbalanced_Parakeet_maxent_global , DL_Parakeet_global_th )  > Static_model_bioclim_imbalanced_results_Parakeet_global[2,2] )
+Static_model_bioclim_imbalanced_Parakeet_rf_global_th <- ( crop( Static_model_bioclim_imbalanced_Parakeet_rf_global , DL_Parakeet_global_th )  > Static_model_bioclim_imbalanced_results_Parakeet_global[3,2] )
+
+# Parakeet -  worldclim balanced
+Static_model_worldclim_balanced_Parakeet_gbm_1000km_th <- ( crop( Static_model_worldclim_balanced_Parakeet_gbm_1000km , DL_Parakeet_1000km_th )  > Static_model_worldclim_balanced_results_Parakeet_1000km[1,2] )
+Static_model_worldclim_balanced_Parakeet_maxent_1000km_th <- ( crop( Static_model_worldclim_balanced_Parakeet_maxent_1000km , DL_Parakeet_1000km_th )  > Static_model_worldclim_balanced_results_Parakeet_1000km[2,2] )
+Static_model_worldclim_balanced_Parakeet_rf_1000km_th <- ( crop( Static_model_worldclim_balanced_Parakeet_rf_1000km , DL_Parakeet_1000km_th )  > Static_model_worldclim_balanced_results_Parakeet_1000km[3,2] )
+
+Static_model_worldclim_balanced_Parakeet_gbm_global_th <- ( crop( Static_model_worldclim_balanced_Parakeet_gbm_global , DL_Parakeet_global_th )  > Static_model_worldclim_balanced_results_Parakeet_global[1,2] )
+Static_model_worldclim_balanced_Parakeet_maxent_global_th <- ( crop( Static_model_worldclim_balanced_Parakeet_maxent_global , DL_Parakeet_global_th )  > Static_model_worldclim_balanced_results_Parakeet_global[2,2] )
+Static_model_worldclim_balanced_Parakeet_rf_global_th <- ( crop( Static_model_worldclim_balanced_Parakeet_rf_global , DL_Parakeet_global_th )  > Static_model_worldclim_balanced_results_Parakeet_global[3,2] )
+
+#_________________________________________________________________________
+
+
+
+
+```
+
+#### 1000km {.tabset .tabset-pills}
+
+##### Boar {.tabset .tabset-pills}
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( DL_Boar_1000km_th + Static_model_bioclim_balanced_Boar_gbm_1000km_th , main = "Boar - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_1000km_th + Static_model_bioclim_balanced_Boar_maxent_1000km_th , main = "Boar - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_1000km_th + Static_model_bioclim_balanced_Boar_rf_1000km_th , main = "Boar - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( DL_Boar_1000km_th + Static_model_bioclim_imbalanced_Boar_gbm_1000km_th , main = "Boar - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_1000km_th + Static_model_bioclim_imbalanced_Boar_maxent_1000km_th , main = "Boar - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_1000km_th + Static_model_bioclim_imbalanced_Boar_rf_1000km_th , main = "Boar - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( DL_Boar_1000km_th + Static_model_worldclim_balanced_Boar_gbm_1000km_th , main = "Boar - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_1000km_th + Static_model_worldclim_balanced_Boar_maxent_1000km_th , main = "Boar - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_1000km_th + Static_model_worldclim_balanced_Boar_rf_1000km_th , main = "Boar - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+##### Kudzu {.tabset .tabset-pills}
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( DL_Kudzu_1000km_th + Static_model_bioclim_balanced_Kudzu_gbm_1000km_th , main = "Kudzu - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_1000km_th + Static_model_bioclim_balanced_Kudzu_maxent_1000km_th , main = "Kudzu - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_1000km_th + Static_model_bioclim_balanced_Kudzu_rf_1000km_th , main = "Kudzu - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( DL_Kudzu_1000km_th + Static_model_bioclim_imbalanced_Kudzu_gbm_1000km_th , main = "Kudzu - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_1000km_th + Static_model_bioclim_imbalanced_Kudzu_maxent_1000km_th , main = "Kudzu - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_1000km_th + Static_model_bioclim_imbalanced_Kudzu_rf_1000km_th , main = "Kudzu - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( DL_Kudzu_1000km_th + Static_model_worldclim_balanced_Kudzu_gbm_1000km_th , main = "Kudzu - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_1000km_th + Static_model_worldclim_balanced_Kudzu_maxent_1000km_th , main = "Kudzu - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_1000km_th + Static_model_worldclim_balanced_Kudzu_rf_1000km_th , main = "Kudzu - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+
+##### Ladybird {.tabset .tabset-pills}
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( DL_Ladybird_1000km_th + Static_model_bioclim_balanced_Ladybird_gbm_1000km_th , main = "Ladybird - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_1000km_th + Static_model_bioclim_balanced_Ladybird_maxent_1000km_th , main = "Ladybird - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_1000km_th + Static_model_bioclim_balanced_Ladybird_rf_1000km_th , main = "Ladybird - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( DL_Ladybird_1000km_th + Static_model_bioclim_imbalanced_Ladybird_gbm_1000km_th , main = "Ladybird - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_1000km_th + Static_model_bioclim_imbalanced_Ladybird_maxent_1000km_th , main = "Ladybird - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_1000km_th + Static_model_bioclim_imbalanced_Ladybird_rf_1000km_th , main = "Ladybird - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( DL_Ladybird_1000km_th + Static_model_worldclim_balanced_Ladybird_gbm_1000km_th , main = "Ladybird - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_1000km_th + Static_model_worldclim_balanced_Ladybird_maxent_1000km_th , main = "Ladybird - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_1000km_th + Static_model_worldclim_balanced_Ladybird_rf_1000km_th , main = "Ladybird - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+
+##### Parakeet {.tabset .tabset-pills}
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( DL_Parakeet_1000km_th + Static_model_bioclim_balanced_Parakeet_gbm_1000km_th , main = "Parakeet - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_1000km_th + Static_model_bioclim_balanced_Parakeet_maxent_1000km_th , main = "Parakeet - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_1000km_th + Static_model_bioclim_balanced_Parakeet_rf_1000km_th , main = "Parakeet - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( DL_Parakeet_1000km_th + Static_model_bioclim_imbalanced_Parakeet_gbm_1000km_th , main = "Parakeet - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_1000km_th + Static_model_bioclim_imbalanced_Parakeet_maxent_1000km_th , main = "Parakeet - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_1000km_th + Static_model_bioclim_imbalanced_Parakeet_rf_1000km_th , main = "Parakeet - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( DL_Parakeet_1000km_th + Static_model_worldclim_balanced_Parakeet_gbm_1000km_th , main = "Parakeet - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_1000km_th + Static_model_worldclim_balanced_Parakeet_maxent_1000km_th , main = "Parakeet - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_1000km_th + Static_model_worldclim_balanced_Parakeet_rf_1000km_th , main = "Parakeet - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+#### {-}
+
+
+#### Global {.tabset .tabset-pills}
+
+##### Boar {.tabset .tabset-pills}
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( DL_Boar_global_th + Static_model_bioclim_balanced_Boar_gbm_global_th , main = "Boar - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_global_th + Static_model_bioclim_balanced_Boar_maxent_global_th , main = "Boar - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_global_th + Static_model_bioclim_balanced_Boar_rf_global_th , main = "Boar - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( DL_Boar_global_th + Static_model_bioclim_imbalanced_Boar_gbm_global_th , main = "Boar - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_global_th + Static_model_bioclim_imbalanced_Boar_maxent_global_th , main = "Boar - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_global_th + Static_model_bioclim_imbalanced_Boar_rf_global_th , main = "Boar - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( DL_Boar_global_th + Static_model_worldclim_balanced_Boar_gbm_global_th , main = "Boar - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_global_th + Static_model_worldclim_balanced_Boar_maxent_global_th , main = "Boar - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_global_th + Static_model_worldclim_balanced_Boar_rf_global_th , main = "Boar - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+##### Kudzu {.tabset .tabset-pills}
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( DL_Kudzu_global_th + Static_model_bioclim_balanced_Kudzu_gbm_global_th , main = "Kudzu - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_global_th + Static_model_bioclim_balanced_Kudzu_maxent_global_th , main = "Kudzu - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_global_th + Static_model_bioclim_balanced_Kudzu_rf_global_th , main = "Kudzu - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( DL_Kudzu_global_th + Static_model_bioclim_imbalanced_Kudzu_gbm_global_th , main = "Kudzu - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_global_th + Static_model_bioclim_imbalanced_Kudzu_maxent_global_th , main = "Kudzu - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_global_th + Static_model_bioclim_imbalanced_Kudzu_rf_global_th , main = "Kudzu - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( DL_Kudzu_global_th + Static_model_worldclim_balanced_Kudzu_gbm_global_th , main = "Kudzu - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_global_th + Static_model_worldclim_balanced_Kudzu_maxent_global_th , main = "Kudzu - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Kudzu_global_th + Static_model_worldclim_balanced_Kudzu_rf_global_th , main = "Kudzu - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+
+##### Ladybird {.tabset .tabset-pills}
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( DL_Ladybird_global_th + Static_model_bioclim_balanced_Ladybird_gbm_global_th , main = "Ladybird - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_global_th + Static_model_bioclim_balanced_Ladybird_maxent_global_th , main = "Ladybird - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_global_th + Static_model_bioclim_balanced_Ladybird_rf_global_th , main = "Ladybird - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( DL_Ladybird_global_th + Static_model_bioclim_imbalanced_Ladybird_gbm_global_th , main = "Ladybird - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_global_th + Static_model_bioclim_imbalanced_Ladybird_maxent_global_th , main = "Ladybird - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_global_th + Static_model_bioclim_imbalanced_Ladybird_rf_global_th , main = "Ladybird - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( DL_Ladybird_global_th + Static_model_worldclim_balanced_Ladybird_gbm_global_th , main = "Ladybird - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_global_th + Static_model_worldclim_balanced_Ladybird_maxent_global_th , main = "Ladybird - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Ladybird_global_th + Static_model_worldclim_balanced_Ladybird_rf_global_th , main = "Ladybird - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+
+##### Parakeet {.tabset .tabset-pills}
+
+###### Bio_bal
+```{r echo=FALSE}
+
+plot( DL_Parakeet_global_th + Static_model_bioclim_balanced_Parakeet_gbm_global_th , main = "Parakeet - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_global_th + Static_model_bioclim_balanced_Parakeet_maxent_global_th , main = "Parakeet - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_global_th + Static_model_bioclim_balanced_Parakeet_rf_global_th , main = "Parakeet - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+###### Bio_imbal
+```{r echo=FALSE}
+
+plot( DL_Parakeet_global_th + Static_model_bioclim_imbalanced_Parakeet_gbm_global_th , main = "Parakeet - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_global_th + Static_model_bioclim_imbalanced_Parakeet_maxent_global_th , main = "Parakeet - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_global_th + Static_model_bioclim_imbalanced_Parakeet_rf_global_th , main = "Parakeet - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+###### WC_bal
+```{r echo=FALSE}
+
+plot( DL_Parakeet_global_th + Static_model_worldclim_balanced_Parakeet_gbm_global_th , main = "Parakeet - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_global_th + Static_model_worldclim_balanced_Parakeet_maxent_global_th , main = "Parakeet - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Parakeet_global_th + Static_model_worldclim_balanced_Parakeet_rf_global_th , main = "Parakeet - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+#### {-}
+
+#### P/A {.tabset .tabset-pills}
+
+```{r include=FALSE}
+
+# Monkeyflower
+
+# Threshold finder
+
+final_Monkeyflower_donut <- roc( data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_true_values_Monkeyflower.csv" ,  col_names = FALSE ) )$X1 , 
+                          data.frame( read_csv( "./Results_deep_learning/Best_models/Time_series_best_model_test_predictions_Monkeyflower.csv",  col_names = FALSE ) )$X1 ) 
+# Calculate sens_spec
+# determine the best threshold
+Monkeyflower_dl_th_donut <- which(final_Monkeyflower_donut$sensitivities + final_Monkeyflower_donut$specificities == max(final_Monkeyflower_donut$sensitivities + final_Monkeyflower_donut$specificities), arr.ind = TRUE)
+final_Monkeyflower_donut$thresholds[[Monkeyflower_dl_th_donut]]
+
+
+DL_Monkeyflower_donut_th <-  ( ( DL_Monkeyflower_donut > final_Monkeyflower_donut$thresholds[[Monkeyflower_dl_th_donut]] ) * 2 )
+
+# Static models
+
+# Monkeyflower -  bioclim balanced
+
+Static_model_bioclim_balanced_Monkeyflower_gbm_donut_th <- ( crop( Static_model_bioclim_balanced_Monkeyflower_gbm_donut , DL_Monkeyflower_donut_th )  > Static_model_bioclim_balanced_results_Monkeyflower_donut[1,2] )
+Static_model_bioclim_balanced_Monkeyflower_maxent_donut_th <- ( crop( Static_model_bioclim_balanced_Monkeyflower_maxent_donut , DL_Monkeyflower_donut_th )  > Static_model_bioclim_balanced_results_Monkeyflower_donut[2,2] )
+Static_model_bioclim_balanced_Monkeyflower_rf_donut_th <- ( crop( Static_model_bioclim_balanced_Monkeyflower_rf_donut , DL_Monkeyflower_donut_th )  > Static_model_bioclim_balanced_results_Monkeyflower_donut[3,2] )
+
+# Monkeyflower -  bioclim imbalanced
+
+Static_model_bioclim_imbalanced_Monkeyflower_gbm_donut_th <- ( crop( Static_model_bioclim_imbalanced_Monkeyflower_gbm_donut , DL_Monkeyflower_donut_th )  > Static_model_bioclim_imbalanced_results_Monkeyflower_donut[1,2] )
+Static_model_bioclim_imbalanced_Monkeyflower_maxent_donut_th <- ( crop( Static_model_bioclim_imbalanced_Monkeyflower_maxent_donut , DL_Monkeyflower_donut_th )  > Static_model_bioclim_imbalanced_results_Monkeyflower_donut[2,2] )
+Static_model_bioclim_imbalanced_Monkeyflower_rf_donut_th <- ( crop( Static_model_bioclim_imbalanced_Monkeyflower_rf_donut , DL_Monkeyflower_donut_th )  > Static_model_bioclim_imbalanced_results_Monkeyflower_donut[3,2] )
+
+# Monkeyflower -  worldclim balanced
+
+Static_model_worldclim_balanced_Monkeyflower_gbm_donut_th <- ( crop( Static_model_worldclim_balanced_Monkeyflower_gbm_donut , DL_Monkeyflower_donut_th )  > Static_model_worldclim_balanced_results_Monkeyflower_donut[1,2] )
+Static_model_worldclim_balanced_Monkeyflower_maxent_donut_th <- ( crop( Static_model_worldclim_balanced_Monkeyflower_maxent_donut , DL_Monkeyflower_donut_th )  > Static_model_worldclim_balanced_results_Monkeyflower_donut[2,2] )
+Static_model_worldclim_balanced_Monkeyflower_rf_donut_th <- ( crop( Static_model_worldclim_balanced_Monkeyflower_rf_donut , DL_Monkeyflower_donut_th )  > Static_model_worldclim_balanced_results_Monkeyflower_donut[3,2] )
+
+
+
+
+```
+
+
+
+##### Bio_bal
+```{r echo=FALSE}
+
+plot( DL_Monkeyflower_donut_th + Static_model_bioclim_balanced_Monkeyflower_gbm_donut_th , main = "Monkeyflower - GBM " , 
+      legend = FALSE , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ,
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) ,  
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Monkeyflower_donut_th + Static_model_bioclim_balanced_Monkeyflower_maxent_donut_th , main = "Monkeyflower - MaxEnt " , 
+      legend = FALSE , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ,
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Monkeyflower_donut_th + Static_model_bioclim_balanced_Monkeyflower_rf_donut_th , main = "Monkeyflower - RF " , 
+      legend = FALSE , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ,
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+##### Bio_imbal
+```{r echo=FALSE}
+
+plot( DL_Monkeyflower_donut_th + Static_model_bioclim_imbalanced_Monkeyflower_gbm_donut_th , main = "Monkeyflower - GBM " , 
+      legend = FALSE , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ,
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Monkeyflower_donut_th + Static_model_bioclim_imbalanced_Monkeyflower_maxent_donut_th , main = "Monkeyflower - MaxEnt " , 
+      legend = FALSE , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ,
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Monkeyflower_donut_th + Static_model_bioclim_imbalanced_Monkeyflower_rf_donut_th , main = "Monkeyflower - RF " , 
+      legend = FALSE , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ,
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+##### WC_bal
+```{r echo=FALSE}
+
+plot( DL_Monkeyflower_donut_th + Static_model_worldclim_balanced_Monkeyflower_gbm_donut_th , main = "Monkeyflower - GBM " , 
+      legend = FALSE , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ,
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "GBM" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Monkeyflower_donut_th + Static_model_worldclim_balanced_Monkeyflower_maxent_donut_th , main = "Monkeyflower - MaxEnt " , 
+      legend = FALSE , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ,
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "MaxEnt" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Monkeyflower_donut_th + Static_model_worldclim_balanced_Monkeyflower_rf_donut_th , main = "Monkeyflower - RF " , 
+      legend = FALSE , xlim = c( -125.156250 , -110.917969 ) , ylim = c( 32.287133 , 49.439557 ) ,
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "DLNN" , "RF" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+
+### {-}
+
+
+### Prediction comparisons: 1000km buffer v. global buffer {.tabset .tabset-pills}
+
+#### Boar {.tabset .tabset-pills}
+
+##### DL
+```{r echo=FALSE}
+
+plot( 2*DL_Boar_1000km_th +  DL_Boar_global_th , main = "Boar - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Buffer" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+
+#####  Bio_bal
+```{r echo=FALSE}
+
+plot( Static_model_bioclim_balanced_Boar_gbm_1000km_th + Static_model_bioclim_balanced_Boar_gbm_global_th , main = "Boar - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_balanced_Boar_maxent_1000km_th + Static_model_bioclim_balanced_Boar_maxent_global_th , main = "Boar - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_balanced_Boar_rf_1000km_th + Static_model_bioclim_balanced_Boar_rf_global_th , main = "Boar - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+#####  Bio_imbal
+```{r echo=FALSE}
+
+plot( Static_model_bioclim_imbalanced_Boar_gbm_1000km_th + Static_model_bioclim_imbalanced_Boar_gbm_global_th , main = "Boar - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_imbalanced_Boar_maxent_1000km_th + Static_model_bioclim_imbalanced_Boar_maxent_global_th , main = "Boar - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( DL_Boar_1000km_th + Static_model_bioclim_imbalanced_Boar_rf_global_th , main = "Boar - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+#####  WC_bal
+```{r echo=FALSE}
+
+plot( Static_model_worldclim_balanced_Boar_gbm_1000km_th + Static_model_worldclim_balanced_Boar_gbm_global_th , main = "Boar - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_worldclim_balanced_Boar_maxent_1000km_th + Static_model_worldclim_balanced_Boar_maxent_global_th , main = "Boar - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_worldclim_balanced_Boar_rf_1000km_th + Static_model_worldclim_balanced_Boar_rf_global_th , main = "Boar - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+#### {-}
+
+#### Kudzu {.tabset .tabset-pills}
+
+##### DL
+```{r echo=FALSE}
+
+plot( 2*DL_Kudzu_1000km_th +  DL_Kudzu_global_th , main = "Kudzu - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Buffer" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+##### Bio_bal
+```{r echo=FALSE}
+
+plot( Static_model_bioclim_balanced_Kudzu_gbm_1000km_th + Static_model_bioclim_balanced_Kudzu_gbm_global_th , main = "Kudzu - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_balanced_Kudzu_maxent_1000km_th + Static_model_bioclim_balanced_Kudzu_maxent_global_th , main = "Kudzu - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot(  Static_model_bioclim_balanced_Kudzu_rf_1000km_th + Static_model_bioclim_balanced_Kudzu_rf_global_th , main = "Kudzu - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+##### Bio_imbal
+```{r echo=FALSE}
+
+plot( Static_model_bioclim_imbalanced_Kudzu_gbm_1000km_th + Static_model_bioclim_imbalanced_Kudzu_gbm_global_th , main = "Kudzu - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_imbalanced_Kudzu_maxent_1000km_th + Static_model_bioclim_imbalanced_Kudzu_maxent_global_th , main = "Kudzu - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_imbalanced_Kudzu_rf_1000km_th + Static_model_bioclim_imbalanced_Kudzu_rf_global_th , main = "Kudzu - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+##### WC_bal
+```{r echo=FALSE}
+
+plot( Static_model_worldclim_balanced_Kudzu_gbm_1000km_th + Static_model_worldclim_balanced_Kudzu_gbm_global_th , main = "Kudzu - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_worldclim_balanced_Kudzu_maxent_1000km_th + Static_model_worldclim_balanced_Kudzu_maxent_global_th , main = "Kudzu - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_worldclim_balanced_Kudzu_rf_1000km_th + Static_model_worldclim_balanced_Kudzu_rf_global_th , main = "Kudzu - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+#### {-}
+
+#### Ladybird {.tabset .tabset-pills}
+
+##### DL
+```{r echo=FALSE}
+
+plot( 2*DL_Ladybird_1000km_th +  DL_Ladybird_global_th , main = "Ladybird - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Buffer" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+
+#####Bio_bal
+```{r echo=FALSE}
+
+plot( Static_model_bioclim_balanced_Ladybird_gbm_1000km_th + Static_model_bioclim_balanced_Ladybird_gbm_global_th , main = "Ladybird - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_balanced_Ladybird_maxent_1000km_th + Static_model_bioclim_balanced_Ladybird_maxent_global_th , main = "Ladybird - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_balanced_Ladybird_rf_1000km_th + Static_model_bioclim_balanced_Ladybird_rf_global_th , main = "Ladybird - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+##### Bio_imbal
+```{r echo=FALSE}
+
+plot( Static_model_bioclim_imbalanced_Ladybird_gbm_1000km_th + Static_model_bioclim_imbalanced_Ladybird_gbm_global_th , main = "Ladybird - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_imbalanced_Ladybird_maxent_1000km_th + Static_model_bioclim_imbalanced_Ladybird_maxent_global_th , main = "Ladybird - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_imbalanced_Ladybird_rf_1000km_th + Static_model_bioclim_imbalanced_Ladybird_rf_global_th , main = "Ladybird - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+##### WC_bal
+```{r echo=FALSE}
+
+plot( Static_model_worldclim_balanced_Ladybird_gbm_1000km_th + Static_model_worldclim_balanced_Ladybird_gbm_global_th , main = "Ladybird - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_worldclim_balanced_Ladybird_maxent_1000km_th + Static_model_worldclim_balanced_Ladybird_maxent_global_th , main = "Ladybird - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_worldclim_balanced_Ladybird_rf_1000km_th  + Static_model_worldclim_balanced_Ladybird_rf_global_th , main = "Ladybird - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+#### {-}
+
+#### Parakeet {.tabset .tabset-pills}
+
+##### DL
+```{r echo=FALSE}
+
+plot( 2*DL_Parakeet_1000km_th +  DL_Parakeet_global_th , main = "Parakeet - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Buffer" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+
+##### Bio_bal
+```{r echo=FALSE}
+
+plot( Static_model_bioclim_balanced_Parakeet_gbm_1000km_th + Static_model_bioclim_balanced_Parakeet_gbm_global_th , main = "Parakeet - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_balanced_Parakeet_maxent_1000km_th + Static_model_bioclim_balanced_Parakeet_maxent_global_th , main = "Parakeet - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_balanced_Parakeet_rf_1000km_th + Static_model_bioclim_balanced_Parakeet_rf_global_th , main = "Parakeet - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+```
+
+##### Bio_imbal
+```{r echo=FALSE}
+
+plot( Static_model_bioclim_imbalanced_Parakeet_gbm_1000km_th + Static_model_bioclim_imbalanced_Parakeet_gbm_global_th , main = "Parakeet - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_imbalanced_Parakeet_maxent_1000km_th + Static_model_bioclim_imbalanced_Parakeet_maxent_global_th , main = "Parakeet - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_bioclim_imbalanced_Parakeet_rf_1000km_th + Static_model_bioclim_imbalanced_Parakeet_rf_global_th , main = "Parakeet - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+##### WC_bal
+```{r echo=FALSE}
+
+plot( Static_model_worldclim_balanced_Parakeet_gbm_1000km_th + Static_model_worldclim_balanced_Parakeet_gbm_global_th , main = "Parakeet - GBM " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_worldclim_balanced_Parakeet_maxent_1000km_th + Static_model_worldclim_balanced_Parakeet_maxent_global_th , main = "Parakeet - MaxEnt " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+plot( Static_model_worldclim_balanced_Parakeet_rf_1000km_th + Static_model_worldclim_balanced_Parakeet_rf_global_th , main = "Parakeet - RF " , 
+      legend = FALSE , 
+      col = c("azure2" , "cornflowerblue" ,  "forestgreen", "goldenrod1" ) 
+  )
+legend( "bottomright" , 
+       title = "Algorithm" , 
+       c( "1000km" , "Global" , "Both" ) , 
+       fill = c( "forestgreen", "cornflowerblue" , "goldenrod1") ,
+       cex=0.6 )
+
+
+```
+
+#### {-}
+
+### {-}
+
+
+### References
+
+* Angert, Amy L., Matthew Bayly, Seema N. Sheth, and John R. Paul. "Testing range-limit hypotheses using range-wide habitat suitability and occupancy for the scarlet monkeyflower (Erythranthe cardinalis)." The American Naturalist 191, no. 3 (2018): E76-E89.  https://doi.org/10.1086/695984
+
+* Bidinger, Kerstin, S. Lötters, D. Rödder, and M. Veith. "Species distribution models for the alien invasive Asian Harlequin ladybird (Harmonia axyridis)." Journal of Applied Entomology 136, no. 1‐2 (2012): 109-123. https://doi.org/10.1111/j.1439-0418.2010.01598.x
+
+* Bohl, Corentin L., Jamie M. Kass, and Robert P. Anderson. "A new null model approach to quantify performance and significance for ecological niche models of species distributions." Journal of Biogeography 46, no. 6 (2019): 1101-1111. https://doi.org/10.1111/jbi.13573
+
+* Breiman, Leo. "Random forests." Machine learning 45, no. 1 (2001): 5-32. https://link.springer.com/article/10.1023/A:1010933404324
+
+* Callen, Steven T., and Allison J. Miller. "Signatures of niche conservatism and niche shift in the North American kudzu (Pueraria montana) invasion." Diversity and Distributions 21, no. 8 (2015): 853-863. https://doi.org/10.1111/ddi.12341
+
+* Capinha, César, Ana Ceia-Hasse, Andrew M. Kramer, and Christiaan Meijer. "Deep learning for supervised classification of temporal data in ecology." Ecological Informatics 61 (2021): 101252. https://doi.org/10.1016/j.ecoinf.2021.101252
+
+* Cutler, D. Richard, Thomas C. Edwards Jr, Karen H. Beard, Adele Cutler, Kyle T. Hess, Jacob Gibson, and Joshua J. Lawler. "Random forests for classification in ecology." Ecology 88, no. 11 (2007): 2783-2792. https://doi.org/10.1890/07-0539.1
+
+* De'Ath, Glenn. "Boosted trees for ecological modeling and prediction." Ecology 88, no. 1 (2007): 243-251.  https://doi.org/10.1890/0012-9658(2007)88[243:BTFEMA]2.0.CO;2
+
+* Elith, Jane, John R. Leathwick, and Trevor Hastie. "A working guide to boosted regression trees." Journal of Animal Ecology 77, no. 4 (2008): 802-813. https://doi.org/10.1111/j.1365-2656.2008.01390.x
+
+* Elith, Jane, and John R. Leathwick. "Species distribution models: ecological explanation and prediction across space and time." Annual review of ecology, evolution, and systematics 40 (2009): 677-697. https://doi.org/10.1146/annurev.ecolsys.110308.120159
+
+* Elith, Jane, Steven J. Phillips, Trevor Hastie, Miroslav Dudík, Yung En Chee, and Colin J. Yates. "A statistical explanation of MaxEnt for ecologists." Diversity and distributions 17, no. 1 (2011): 43-57. https://doi.org/10.1111/j.1472-4642.2010.00725.x
+
+* Evans, Jeffrey S., Melanie A. Murphy, Zachary A. Holden, and Samuel A. Cushman. "Modeling species distribution and change using random forest." In Predictive species and habitat modeling in landscape ecology, pp. 139-159. Springer, New York, NY, 2011. https://link.springer.com/chapter/10.1007/978-1-4419-7390-0_8
+
+* Fick, Stephen E., and Robert J. Hijmans. "WorldClim 2: new 1‐km spatial resolution climate surfaces for global land areas." International journal of climatology 37, no. 12 (2017): 4302-4315. https://doi.org/10.1002/joc.5086
+
+* Friedman, Jerome H. "Greedy function approximation: a gradient boosting machine." Annals of statistics (2001): 1189-1232. https://www.jstor.org/stable/2699986
+
+* Guisan, Antoine, and Niklaus E. Zimmermann. "Predictive habitat distribution models in ecology." Ecological modelling 135, no. 2-3 (2000): 147-186. https://doi.org/10.1016/S0304-3800(00)00354-9
+
+* Hastie, Trevor, Robert Tibshirani, and Jerome Friedman. The elements of statistical learning: data mining, inference, and prediction. Springer Science & Business Media, 2009.
+
+* Hijmans, Robert J. "Cross‐validation of species distribution models: removing spatial sorting bias and calibration with a null model." Ecology 93, no. 3 (2012): 679-688. https://doi.org/10.1890/11-0826.1
+
+* Hutchinson, G. E. "Concluding remarks". Cold Spring Harbor Symposia on Quantitative Biology 22 415–427 (1957) doi:10.1101/SQB.1957.022.01.039
+
+* James, Gareth, Daniela Witten, Trevor Hastie, and Robert Tibshirani. An introduction to statistical learning. Vol. 112. New York: springer, 2013.
+
+* Kuhn, Max, and Kjell Johnson. Applied predictive modeling. Vol. 26. New York: Springer, 2013.
+
+* Liu, Canran, Graeme Newell, and Matt White. "On the selection of thresholds for predicting species occurrence with presence‐only data." Ecology and evolution 6, no. 1 (2016): 337-348. https://doi.org/10.1002/ece3.1878
+
+* Milanesi, Pietro, Francesca Della Rocca, and Robert A. Robinson. "Integrating dynamic environmental predictors and species occurrences: Toward true dynamic species distribution models." Ecology and evolution 10, no. 2 (2020): 1087-1092. https://doi.org/10.1002/ece3.5938
+
+* Norberg, Anna, Nerea Abrego, F. Guillaume Blanchet, Frederick R. Adler, Barbara J. Anderson, Jani Anttila, Miguel B. Araújo et al. "A comprehensive evaluation of predictive performance of 33 species distribution models at species and community levels." Ecological Monographs 89, no. 3 (2019): e01370. https://doi.org/10.1002/ecm.1370
+
+* Pearson, R.G., Dawson, T.P., Berry, P.M. & Harrison, P.A. (2002) SPECIES: a spatial evaluation of climate impact on the envelope of species. Ecological Modelling, 154, 289–300. https://doi.org/10.1016/S0304-3800(02)00056-X
+
+* Phillips, Steven J., Robert P. Anderson, and Robert E. Schapire. "Maximum entropy modeling of species geographic distributions." Ecological modelling 190, no. 3-4 (2006): 231-259. https://doi.org/10.1016/j.ecolmodel.2005.03.026
+
+* Pearson, Richard G., and Terence P. Dawson. "Predicting the impacts of climate change on the distribution of species: are bioclimate envelope models useful?." Global ecology and biogeography 12, no. 5 (2003): 361-371. https://doi.org/10.1046/j.1466-822X.2003.00042.x
+
+* Sales, Lilian Patrícia, Bruno R. Ribeiro, Matt Warrington Hayward, Adriano Paglia, Marcelo Passamani, and Rafael Loyola. "Niche conservatism and the invasive potential of the wild boar." Journal of Animal Ecology 86, no. 5 (2017): 1214-1223.  https://doi.org/10.1111/1365-2656.12721
+
+* van Kuppevelt, D., C. Meijer, F. Huber, A. van der Ploeg, S. Georgievska, and V. T. van Hees. "Mcfly: Automated deep learning on time series." SoftwareX 12 (2020): 100548. https://doi.org/10.1016/j.softx.2020.100548
+
+
+

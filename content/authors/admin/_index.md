@@ -1,7 +1,7 @@
 ---
 authors: 
 - admin
-bio: theoretical ecology; species invasions;  niche structure and habitat suitability; epidemiological pathway modeling
+bio: theoretical ecology; species invasions; epidemiological pathway modeling
   
 education: 
   courses:
@@ -31,7 +31,7 @@ organizations:
 - name: Department of Integrative Biology, University of South Florida
   url: "http://biology.usf.edu/ib/"
   
-role: Research Associate, PhD student
+role: Quantitative Ecologist
 
 social:
 - icon: envelope
