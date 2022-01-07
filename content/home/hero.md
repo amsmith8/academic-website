@@ -9,7 +9,7 @@ title = ""
 
 # Hero image (optional). Enter filename of an image in the `static/img/` folder.
 hero_media = "trial_scree.shot.png"
-#width = "1300px"
+width = "1300px"
 height = "6000px"
 
 [design.background]
