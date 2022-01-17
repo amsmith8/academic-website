@@ -16,7 +16,7 @@ image:
 lastmod: "2019-04-17T00:00:00Z"
 projects: []
 #subtitle: 'Create a beautifully simple website in under 10 minutes :rocket:'
-summary: Create a beautifully simple website in under 10 minutes.
+summary:
 tags:
 - Academic
 
