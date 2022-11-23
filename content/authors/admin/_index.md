@@ -57,6 +57,6 @@ user_groups:
 - Visitors
 ---
 
-I am a research ass0ciate and PhD candidate in the [Kramer Lab](https://kramera3.github.io) at the [University of South Florida-Department of Integrative Biology](https://www.usf.edu/arts-sciences/departments/ib/). My research interests include implementing mathematical/statistical techniques to ecological data in order to understand species invasions, niche structure/ habitat suitability, and epidemiological pathways.
+I am a research associate and PhD candidate in the [Kramer Lab](https://kramera3.github.io) at the [University of South Florida-Department of Integrative Biology](https://www.usf.edu/arts-sciences/departments/ib/). My research interests include implementing mathematical/statistical techniques to ecological data in order to understand species invasions, niche structure/ habitat suitability, and epidemiological pathways.
 
 My current research involves analyzing environmental degradation by invasive waterfowl, Coronavirus transmission network analysis, and creating biologically informative machine learning algorithms. 
