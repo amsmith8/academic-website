@@ -16,7 +16,7 @@ education:
     year: 2010-13
   - course: A.A. in Mathematics
     institution: Santa Fe College
-    year: 2007-2010  
+    year: 2007-10  
     
 email: "amsmith11@usf.edu"
 
