@@ -23,17 +23,19 @@ links:
   url: 
 location: Virtual Meeting
 math: true
+
 projects:
-- Machine Learning
+
 publishDate: "2021-08-02T00:00:00Z"
 slides: 
 summary: Predicting species distributions with environmental time-series data and deep-learning.
-tags: []
+tags: ["Machine Learning"]
 title: Ecological Society of America annual meeting (2021) presentation
 url_code: ""
 url_pdf: ""
 url_slides: "https://cdmcd.co/A9P37k"
 url_video: ""
+
 ---
 
 
