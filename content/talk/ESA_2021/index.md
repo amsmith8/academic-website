@@ -14,7 +14,7 @@ event: Ecological Society of America Annual Meeting 2021
 event_url: https://www.esa.org/longbeach/
 featured: false
 image:
-  caption: 'Image credit: [**Unsplash**](https://unsplash.com/photos/bzdhc5b3Bxs)'
+  caption: 
   focal_point: Right
 
 location: Virtual Meeting
