@@ -21,6 +21,7 @@ location: Virtual Meeting
 math: true
 
 projects:
+- Deep-learning
 
 publishDate: "2021-08-02T00:00:00Z"
 slides: 
