@@ -27,7 +27,7 @@ projects:
 publishDate: "2021-08-02T00:00:00Z"
 slides: 
 summary: Predicting species distributions with environmental time-series data and deep-learning.
-tags: ["Machine Learning"]
+tags: ["Avian" , Machine Learning"]
 title: Ecological Society of America annual meeting - poster presentation
 url_code: ""
 url_pdf: ""
