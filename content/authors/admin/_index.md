@@ -5,18 +5,18 @@ bio: theoretical ecology; species invasions; epidemiological pathway modeling
   
 education: 
   courses:
-  - course: Ph.D. in Biology -- Ecology & Evolution
-    institution: University of South Florida 
+  - course: Ph.D. in Biology - Ecology & Evolution 
+    institution: University of South Florida, Tampa, FL
     year: 2019 - Present
-  - course: M.S. in Interdisciplinary Ecology -- Wildlife Ecology & Conservation
-    institution: University of Florida
-    year: 2015-18
+  - course: M.S. in Interdisciplinary Ecology 
+    institution: University of Florida, Gainesville, FL
+    year: 2018
   - course: B.A. in Mathematics
-    institution: University of Florida
-    year: 2010-13
+    institution: University of Florida, Gainesville, FL
+    year: 2013
   - course: A.A. in Mathematics
-    institution: Santa Fe College
-    year: 2007-10  
+    institution: Santa Fe College, Gainesville, FL
+    year: 2010  
     
 email: "amsmith11@usf.edu"
 
@@ -49,6 +49,9 @@ social:
 - icon: researchgate
   icon_pack: ai
   link: https://www.researchgate.net/profile/Austin_Smith33
+- icon: inaturalist
+  icon_pack: ai
+  link: https://www.inaturalist.org/people/amsmith8  
   
 superuser: true
 title: Austin M. Smith
