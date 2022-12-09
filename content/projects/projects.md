@@ -40,6 +40,10 @@ subtitle = "Under construction"
   [[content.filter_button]]
     name = "Other"
     tag = "Other"
+  
+  [[content.filter_button]]
+    name = "Time series"
+    tag = "Time series"
 
 [design]
   # Choose how many columns the section has. Valid values: 1 or 2.
