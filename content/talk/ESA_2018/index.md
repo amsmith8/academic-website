@@ -26,7 +26,7 @@ projects:
 
 publishDate: "2021-08-02T00:00:00Z"
 slides: 
-summary: Predicting species distributions with environmental time series data and deep learning.
+summary: A comparison of machine learning methods to classify Chukar Partridge (Alectoris chukar) establishment patterns in Washington state
 tags: [ "Machine Learning"]
 title: Ecological Society of America annual meeting poster presentation
 url_code: ""
