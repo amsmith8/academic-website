@@ -62,7 +62,7 @@ user_groups:
 
 I am a research associate and PhD Candidate in the [Kramer Lab](https://kramera3.github.io) at the [University of South Florida-Department of Integrative Biology](https://www.usf.edu/arts-sciences/departments/ib/). My research interests include implementing mathematical/statistical techniques to ecological data in order to understand species invasions, niche structure/habitat suitability, and epidemiological pathways.
 
-My dissertation, "Species distribution modeling with spatiotemporal data and deep learning", investigates the use of deep learning models built with time series data to classify species distributions and habitat suitability. Other current research products involve analyzing environmental impact of introduced game birds, Coronavirus transmission network analysis, and creating biologically informative machine learning algorithms.
+My dissertation, "Species distribution modeling with spatiotemporal data and deep learning", investigates the use of deep learning models built with time series data to classify species distributions and habitat suitability. Other current research projects involve analyzing environmental impact of introduced game birds, Coronavirus transmission network analysis, and creating biologically informative machine learning algorithms.
 
 I completed both my Bachelor's in mathematics (2013) and Master's in interdisciplinary ecology (2018) at the University of Florida (Go Gators!). My undergraduate studies focused on applied analysis, as well as secondary education studies and curriculum theory.  For my Master's thesis, I studied and analyzed the success and failures of introduced Galliformes, particularly _Alectoris chukar_ (chukar partridge). 
 
