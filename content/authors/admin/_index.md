@@ -54,7 +54,7 @@ social:
   link: https://www.inaturalist.org/people/amsmith8  
 - icon: linkedin
   icon_pack: fab
-  link: www.linkedin.com/in/austin-smith-m-s-30567010b 
+  link: https://www.linkedin.com/in/austin-smith-m-s-30567010b/
   
 superuser: true
 title: Austin M. Smith
