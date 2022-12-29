@@ -49,6 +49,9 @@ social:
 - icon: researchgate
   icon_pack: ai
   link: https://www.researchgate.net/profile/Austin_Smith33
+- icon: publons
+  icon_pack: ai
+  link: https://www.webofscience.com/wos/author/record/CAI-9219-2022 
 - icon: inaturalist
   icon_pack: ai
   link: https://www.inaturalist.org/people/amsmith8  
