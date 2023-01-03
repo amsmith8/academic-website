@@ -1,5 +1,5 @@
 +++
-title = "A comparison of Mmachine learning methods to classify Chukar Partidge (*Alectoris chukar*) establishment patterns in Washington state"
+title = "A comparison of Mmachine learning methods to classify Chukar Partidge ( *Alectoris chukar* ) establishment patterns in Washington state"
 
 # Date first published.
 date = "2018-05-01"
