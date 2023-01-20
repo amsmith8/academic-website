@@ -6,16 +6,16 @@ bio: theoretical ecology; species invasions; epidemiological pathway modeling
 education: 
   courses:
   - course: Ph.D. in Biology - Ecology & Evolution 
-    institution: University of South Florida, Tampa, FL
+    institution: [University of South Florida, Tampa, FL](https://www.usf.edu/)
     year: 2019 - Present
   - course: M.S. in Interdisciplinary Ecology 
-    institution: University of Florida, Gainesville, FL
+    institution: [University of Florida, Gainesville, FL](https://www.ufl.edu/)
     year: 2018
   - course: B.A. in Mathematics
-    institution: University of Florida, Gainesville, FL
+    institution: [University of Florida, Gainesville, FL](https://www.ufl.edu/)
     year: 2013
   - course: A.A. in Mathematics
-    institution: Santa Fe College, Gainesville, FL
+    institution: [Santa Fe College, Gainesville, FL](https://www.sfcollege.edu/)
     year: 2010  
     
 email: "amsmith11@usf.edu"
@@ -62,7 +62,9 @@ social:
 superuser: true
 title: Austin M. Smith
 user_groups:
+-Principal Investigators
 - Researchers
+
 
 ---
 
