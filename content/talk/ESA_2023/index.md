@@ -29,7 +29,7 @@ summary: Assessing deep learning protocols for optimizing time series-based spec
 tags: ["Machine Learning"]
 title: Ecological Society of America annual meeting poster presentation
 url_code: ""
-url_pdf: "https://www.conferenceharvester.com/uploads/harvester/presentations/FPUUDFDK/FPUUDFDK-PDF-2507388-1391034-1-PDF.pdf"
+url_pdf: "www.soccer.com"
 url_slides: 
 url_video: ""
 
