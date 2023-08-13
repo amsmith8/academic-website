@@ -26,7 +26,7 @@ interests:
 - Biogeography
 - Epidemiology
 - Machine Learning
-- Theoretical Ecology
+- Pedog
 
 organizations:
 - name: Department of Integrative Biology, University of South Florida
