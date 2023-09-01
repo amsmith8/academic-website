@@ -26,7 +26,7 @@ interests:
 - Biogeography
 - Epidemiology
 - Machine Learning
-- Pedog
+- Teaching methods/Pedogy
 
 organizations:
 - name: Department of Integrative Biology, University of South Florida
@@ -73,7 +73,7 @@ I am a research associate and PhD Candidate in the [Kramer Lab](https://kramera3
 
 My dissertation, "Species distribution modeling with spatiotemporal data and deep learning", investigates the use of deep learning models built with time series data to classify species distributions and habitat suitability. Other current research projects involve analyzing environmental impact of introduced game birds, Coronavirus transmission network analysis, and creating biologically informative machine learning algorithms.
 
-Prior to  my time at USF, I graduated from the University of Florida (Go Gators!), and  completed both my Bachelor's in [mathematics (2013) and Master's in interdisciplinary ecology (2018) from the [School of Natural Resources & Environment (SNRE)](https://snre.ifas.ufl.edu/). My undergraduate studies focused on applied analysis, as well as secondary education studies and curriculum theory.  For my Master's thesis, I studied and analyzed the success and failures of introduced Galliformes, particularly _Alectoris chukar_ (chukar partridge). 
+Prior to  my time at USF, I graduated from the University of Florida (Go Gators!), and  completed both my Bachelor's in mathematics (2013) and Master's in interdisciplinary ecology (2018) from the [School of Natural Resources & Environment (SNRE)](https://snre.ifas.ufl.edu/). My undergraduate studies focused on applied analysis, as well as secondary education studies and curriculum theory.  For my Master's thesis, I studied and analyzed the success and failures of introduced Galliformes, particularly _Alectoris chukar_ (chukar partridge). 
 
 Aside from academia, I am interested in biking, hiking, and all things outdoors.  I am a lead Bird of Prey handler and community educator at [Boyd Hill Nature Preserve](https://friendsofboydhillnaturepreserve.wildapricot.org) in St. Petersburg, FL.  I am also actively involved in the Florida craft beer community, and a founding member of [Cypress & Grove Brewing Co.](https://www.cypressandgrove.com/home) in Gainesville. FL . 
 
