@@ -9,28 +9,28 @@ address:
   street: 
 all_day: false
 authors: []
-date: "2023-08-10T08:00:00Z"
-date_end: "2030-06-01T10:00:00Z"
-event: Ecological Society of America Annual Meeting 2023
-event_url: "https://esa2023.eventscribe.net/index.asp"
+date: "2023-09-29T08:00:00Z"
+date_end: ""
+event: USF Artificial Intelligence + X Symposium
+event_url: "https://aix.eng.usf.edu/event_2023-09-29.html"
 featured: false
 image:
   caption: 
   focal_point: Right
 
-location: Portland, OR
+location: Univeristy of South Florida, Tampa, FL
 math: true
 
 projects:
 - Deep-learning
 
-publishDate: "2023-08-10T00:00:00Z"
+publishDate: "2023-09-29T00:00:00Z"
 slides: 
 summary: Assessing deep learning protocols for optimizing time series-based species distribution models
 tags: ["Machine Learning"]
-title: Ecological Society of America annual meeting poster presentation
+title: USF Artificial Intelligence + X Symposium
 url_code: ""
-url_pdf: "https://www.conferenceharvester.com/uploads/harvester/presentations/FPUUDFDK/FPUUDFDK-PDF-2507388-1391034-1-PDF.pdf"
+url_pdf: ""
 url_slides: 
 url_video: ""
 
