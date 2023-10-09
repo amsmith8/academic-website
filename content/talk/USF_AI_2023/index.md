@@ -26,7 +26,7 @@ projects:
 
 publishDate: "2023-09-29T00:00:00Z"
 slides: 
-summary: Assessing deep learning protocols for optimizing time series-based species distribution models
+summary: Species distribution modeling with time series data and deep learning
 tags: ["Machine Learning"]
 title: USF Artificial Intelligence + X Symposium
 url_code: ""
