@@ -30,8 +30,8 @@ summary: Species distribution modeling with time series data and deep learning
 tags: ["Machine Learning"]
 title: USF Artificial Intelligence + X Symposium
 url_code: ""
-url_pdf: "github.com/amsmith8/academic_posters/blob/main/USF_AI_2023_poster.pdf"
-url_slides:"" 
+url_pdf: "https://github.com/amsmith8/academic_posters/blob/main/USF_AI_poster.pdf"
+url_slides: "" 
 url_video: ""
 
 ---
