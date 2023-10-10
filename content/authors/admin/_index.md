@@ -8,7 +8,7 @@ education:
   courses:
   - course: Ph.D. in Biology - Ecology & Evolution 
     institution: University of South Florida, Tampa, FL
-    year: 2019 - Present
+    year:    (expected 2024)
   - course: M.S. in Interdisciplinary Ecology 
     institution: University of Florida, Gainesville, FL
     year: 2018
@@ -26,7 +26,7 @@ interests:
 - Biogeography
 - Epidemiology
 - Machine Learning
-- Teaching methods/Pedogy
+- Teaching methods/Pedagogy
 
 organizations:
 - name: Department of Integrative Biology, University of South Florida
