@@ -26,7 +26,7 @@ interests:
 - Biogeography
 - Epidemiology
 - Machine Learning
-- Temporal ecoology
+- Temporal ecology
 
 organizations:
 - name: Department of Integrative Biology, University of South Florida
