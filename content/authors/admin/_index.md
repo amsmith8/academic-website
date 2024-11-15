@@ -32,7 +32,7 @@ organizations:
 - name: Department of Integrative Biology, University of South Florida
   url: "http://biology.usf.edu/ib/"
   
-role: Ecologist
+role: Quantitative ecologist
 
 social:
 #- icon: envelope
