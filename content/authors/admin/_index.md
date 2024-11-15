@@ -61,7 +61,7 @@ social:
   link: https://www.linkedin.com/in/austin-smith-m-s-30567010b/
   
 superuser: true
-title: A. M. Smith Quantitative Ecology 
+title: Austin Smith, PhD
 user_groups:
 - Principal Investigators
 - Researchers
