@@ -88,7 +88,7 @@ show_related = {docs = true, page = false, post = true, project = true, publicat
 ############################
 
 # Enter contact details (optional). To hide a field, clear it to "".
-email = "amsmith11@usf.edu"
+email = "amsmith.ecology@gmail.com"
 phone = ""
 
 # Address
@@ -170,7 +170,7 @@ highlight_superuser = false
 link_authors = true
 
 # Abstract length (characters) in the Compact and Portfolio Card list views. Also, see `summaryLength` in `config.toml`.
-abstract_length = 135
+abstract_length = 150
 
 # Load JS plugins
 #   E.g. To load `/assets/js/custom.js`, set `plugins_js = ["custom"]`.
