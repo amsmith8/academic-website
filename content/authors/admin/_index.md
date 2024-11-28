@@ -8,7 +8,7 @@ education:
   courses:
   - course: Ph.D. in Biology - Ecology & Evolution 
     institution: University of South Florida, Tampa, FL
-    year: 2019 - Present
+    year: 2024
   - course: M.S. in Interdisciplinary Ecology 
     institution: University of Florida, Gainesville, FL
     year: 2018
@@ -26,13 +26,13 @@ interests:
 - Biogeography
 - Epidemiology
 - Machine Learning
-- Teaching methods/Pedogy
+- Temporal ecology
 
 organizations:
 - name: Department of Integrative Biology, University of South Florida
   url: "http://biology.usf.edu/ib/"
   
-role: Ecologist, PhD Candidate
+role: Quantitative ecologist
 
 social:
 #- icon: envelope
@@ -61,7 +61,7 @@ social:
   link: https://www.linkedin.com/in/austin-smith-m-s-30567010b/
   
 superuser: true
-title: Austin M. Smith
+title: Austin Smith, PhD
 user_groups:
 - Principal Investigators
 - Researchers
@@ -69,7 +69,7 @@ user_groups:
 
 ---
 
-I am a research associate and PhD Candidate in the [Kramer Lab](https://kramera3.github.io) at the [University of South Florida-Department of Integrative Biology (USF-IB)](https://www.usf.edu/arts-sciences/departments/ib/). My research interests include implementing mathematical/statistical techniques to ecological data in order to understand species invasions, niche structure/habitat suitability, and epidemiological pathways.
+I am a disease and wildlife ecologist in the [Kramer Lab](https://kramera3.github.io) at the [University of South Florida-Department of Integrative Biology (USF-IB)](https://www.usf.edu/arts-sciences/departments/ib/). My research interests include implementing mathematical/statistical techniques to ecological data in order to understand species invasions, niche structure/habitat suitability, and epidemiological pathways.
 
 My dissertation, "Species distribution modeling with spatiotemporal data and deep learning", investigates the use of deep learning models built with time series data to classify species distributions and habitat suitability. Other current research projects involve analyzing environmental impact of introduced game birds, Coronavirus transmission network analysis, and creating biologically informative machine learning algorithms.
 
