@@ -19,18 +19,18 @@ education:
     institution: Santa Fe College, Gainesville, FL
     year: 2010  
     
-email: "amsmith11@usf.edu"
+email: "amsmith.ecology@gmail.com"
 
 interests:
-- Avian biology
+- Avian ecology
 - Biogeography
 - Epidemiology
 - Machine Learning
 - Temporal ecology
 
 organizations:
-- name: Department of Integrative Biology, University of South Florida
-  url: "http://biology.usf.edu/ib/"
+- name:  
+  url: 
   
 role: Quantitative ecologist
 
