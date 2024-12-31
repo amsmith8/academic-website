@@ -6,7 +6,7 @@ bio: theoretical ecology; species invasions; epidemiological pathway modeling
   
 education: 
   courses:
-  - course: Ph.D. in Biology - Ecology & Evolution 
+  - course: Ph.D. in Integrative Biology 
     institution: University of South Florida, Tampa, FL
     year: 2024
   - course: M.S. in Interdisciplinary Ecology 
@@ -69,7 +69,7 @@ user_groups:
 
 ---
 
-I am a disease and wildlife ecologist in the [Kramer Lab](https://kramera3.github.io) at the [University of South Florida-Department of Integrative Biology (USF-IB)](https://www.usf.edu/arts-sciences/departments/ib/). My research interests include implementing mathematical/statistical techniques to ecological data in order to understand species invasions, niche structure/habitat suitability, and epidemiological pathways.
+I am a quantitative ecologist with interest in  disease and wildlife issues.  I recently finished my Ph.D. from the  [University of South Florida-Department of Integrative Biology (USF-IB)](https://www.usf.edu/arts-sciences/departments/ib/), where I was a member of the in the [Kramer Lab](https://kramera3.github.io). My research interests include implementing mathematical/statistical techniques to ecological data in order to understand species invasions, niche structure/habitat suitability, and epidemiological pathways.
 
 My dissertation, "Species distribution modeling with spatiotemporal data and deep learning", investigates the use of deep learning models built with time series data to classify species distributions and habitat suitability. Other current research projects involve analyzing environmental impact of introduced game birds, Coronavirus transmission network analysis, and creating biologically informative machine learning algorithms.
 
