@@ -22,17 +22,16 @@ education:
 email: "amsmith.ecology@gmail.com"
 
 interests:
-- Avian ecology
 - Biogeography
-- Epidemiology
 - Machine Learning
+- Ornithology
 - Temporal ecology
 
 organizations:
-- name:  
-  url: 
+- name: University of Florida   
+  url: https://www.ufl.edu
   
-role: Quantitative ecologist
+role: Postdoctoral Associate, Department of Wildlife Ecology & Conservation
 
 social:
 #- icon: envelope
@@ -61,7 +60,8 @@ social:
   link: www.linkedin.com/in/austin-m-smith-ph-d-30567010b
   
 superuser: true
-title: Austin Smith, PhD
+title: Dr. Austin M. Smith
+
 user_groups:
 - Principal Investigators
 - Researchers
@@ -69,12 +69,17 @@ user_groups:
 
 ---
 
-I am a quantitative ecologist interested in disease and wildlife issues. I recently completed my Ph.D. the  [University of South Florida-Department of Integrative Biology (USF-IB)](https://www.usf.edu/arts-sciences/departments/ib/), where I was a member of the  the [Kramer Lab](https://kramera3.github.io). My research focuses on applying mathematical and statistical methods to ecological data to explore species invasions, niche structure and habitat suitability, as well as epidemiological pathways.
+I'm a quantitative ecologist and postdoctoral researcher in the [Scheffer Lab](https://www.schefferslab.com) and [Callaghan lab](https://www.schefferslab.com) in the [Department of Wildlife Ecology & Conservation](https://wec.ifas.ufl.edu) at the University of Florida, and part of the 2025–2027 [USGS Climate Adaptation Postdoctoral (CAP) Fellows Program](https://www.usgs.gov/programs/climate-adaptation-science-centers/climate-adaptation-postdoctoral-cap-fellows-program. My research applies mathematical and statistical methods to ecological questions, focusing on how environmental variability shapes species distributions across space and time. I’m particularly interested in using machine learning and deep learning to improve ecological forecasting, assess habitat suitability, and understand the dynamics of introduced species.
 
-I recently completed my dissertation, titled "[Species Distribution Modeling with Environmental Time Series Data and Deep Learning](https://digitalcommons.usf.edu/etd/10682/)", which explores the application of deep learning models to evaluate temporal patterns within environmental data to classify species distributions and assess habitat suitability. Other current research projects I am involved in include examining the environmental impact of introduced game birds, and developing biologically informative machine learning algorithms.
+I completed my Ph.D. in Integrative Biology at the University of South Florida, where I was member of the [Kramer Lab](https://kramera3.github.io). My dissertation — "[Species Distribution Modeling with Environmental Time Series Data and Deep Learning](https://digitalcommons.usf.edu/etd/10682/)" — explored how temporal environmental patterns can inform species distribution models. Before that, I earned a B.A. in Mathematics and an M.S. in Interdisciplinary Ecology from the University of Florida.
 
-Before my time at USF, I earned both my Bachelor's in Mathematics (2013) and Master's in Interdisciplinary Ecology (2018) from the University of Florida (Go Gators!). During my undergraduate studies, I focused on applied analysis, along with secondary education and curriculum theory. For my Master's thesis, I researched the success and failures of introduced Galliformes, particularly the Alectoris chukar (chukar partridge).
+In my current postdoctoral work, I'm developing a dynamic, data-driven framework to assess and manage climate-induced species range shifts. This project, in collaboration with the [USGS Climate Adaptation Science Center](https://www.usgs.gov/programs/climate-adaptation-science-centers), integrates advanced modeling, multi-source data, and stakeholder engagement to support climate-informed decision-making.
 
-Aside from academia, I am interested in biking, hiking, and all things outdoors.  I am a lead Bird of Prey handler and community educator at [Boyd Hill Nature Preserve](https://friendsofboydhillnaturepreserve.wildapricot.org) in St. Petersburg, FL.  I am also actively involved in the Florida craft beer community, and original crew member and taproom manager of [Cypress & Grove Brewing Co.](https://www.cypressandgrove.com/home) in Gainesville, FL. 
+
+Outside of research, I enjoy biking, hiking, and working with raptors as a lead Bird of Prey handler and educator at [Boyd Hill Nature Preserve](https://friendsofboydhillnaturepreserve.wildapricot.org). I’m also active in Florida's craft beer community as an original crew member and taproom manager at [Cypress & Grove Brewing Co.](https://www.cypressandgrove.com/home) in Gainesville, FL.
+
+
+
+
 
 
