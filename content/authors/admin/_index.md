@@ -31,7 +31,7 @@ organizations:
 - name: University of Florida   
   url: https://www.ufl.edu
   
-role: Postdoctoral Associate, Department of Wildlife Ecology & Conservation
+role: Postdoctoral Associate Department of Wildlife Ecology & Conservation
 
 social:
 #- icon: envelope
@@ -60,7 +60,7 @@ social:
   link: www.linkedin.com/in/austin-m-smith-ph-d-30567010b
   
 superuser: true
-title: Dr. Austin M. Smith
+title: Dr. Austin Smith
 
 user_groups:
 - Principal Investigators
