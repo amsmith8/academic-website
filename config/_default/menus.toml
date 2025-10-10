@@ -10,7 +10,7 @@
 
 [[main]]
   name = "Posts"
-  url = "#post" 
+  url = "#posts" 
   weight = 2
 
 #[[main]]
@@ -18,10 +18,10 @@
 #  url = "projects"
 #  weight = 3  
 
-[[main]]
-  name = "Projects"
-  url = "#projects"
-  weight = 4
+#[[main]]
+#  name = "Projects"
+#  url = "#projects"
+#  weight = 4
 
 [[main]]
   name = "Publications"
@@ -30,7 +30,7 @@
 
 [[main]]
   name = "Talks"
-  url = "#talk"
+  url = "#talks"
   weight = 6
   
 #[[main]]
