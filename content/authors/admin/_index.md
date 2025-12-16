@@ -21,9 +21,9 @@ education:
     
 email: "amsmith.ecology@gmail.com"
 
-positions:
+positions held:
 - title: Postdoctoral Fellow
-  institution: Univeristy of Florida
+  institution: University of Florida
   year: 2025-present
 
 interests:
