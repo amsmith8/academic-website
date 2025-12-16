@@ -21,6 +21,11 @@ education:
     
 email: "amsmith.ecology@gmail.com"
 
+positions:
+- title: Postdoctoral Fellow
+  institution: Univeristy of Florida
+  year: 2025-present
+
 interests:
 - Biogeography
 - Machine Learning
